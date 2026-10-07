@@ -31,7 +31,7 @@
 
 ## 安装方法
 
-从 [GitHub 0.6.2 测试版发布页](https://github.com/53wei/blender-/releases/tag/v0.6.2) 下载 `blender_scene_assistant-0.6.2.zip`。请不要把 GitHub 自动生成的“Source code”压缩包当作插件安装包。
+从 [GitHub 0.6.2 测试版发布页](https://github.com/53wei/blender-plugin/releases/tag/v0.6.2) 下载 `blender_scene_assistant-0.6.2.zip`。请不要把 GitHub 自动生成的“Source code”压缩包当作插件安装包。
 
 本地已构建的安装包位于 `dist/blender_scene_assistant-0.6.2.zip`，构建产物不放入源码历史。当前版本为开发者测试版，尚未上架 Blender 官方扩展平台，也未完成真实资产及外部用户验收。
 
