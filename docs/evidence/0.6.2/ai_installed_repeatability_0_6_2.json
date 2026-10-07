@@ -1,0 +1,130 @@
+{
+  "blender_version": "Blender 4.5.12 LTS",
+  "installed_package": true,
+  "requested_runs": 20,
+  "completed_runs": 20,
+  "passed_runs": 20,
+  "all_passed": true,
+  "runs": [
+    {
+      "run": 1,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1635.3
+    },
+    {
+      "run": 2,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1649.8
+    },
+    {
+      "run": 3,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1573.8
+    },
+    {
+      "run": 4,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1583.0
+    },
+    {
+      "run": 5,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1583.1
+    },
+    {
+      "run": 6,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1582.3
+    },
+    {
+      "run": 7,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1750.7
+    },
+    {
+      "run": 8,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1734.4
+    },
+    {
+      "run": 9,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1655.2
+    },
+    {
+      "run": 10,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1614.7
+    },
+    {
+      "run": 11,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1598.9
+    },
+    {
+      "run": 12,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1720.8
+    },
+    {
+      "run": 13,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1609.6
+    },
+    {
+      "run": 14,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1723.3
+    },
+    {
+      "run": 15,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1576.9
+    },
+    {
+      "run": 16,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1592.8
+    },
+    {
+      "run": 17,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1591.7
+    },
+    {
+      "run": 18,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1578.6
+    },
+    {
+      "run": 19,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1576.3
+    },
+    {
+      "run": 20,
+      "exit_code": 0,
+      "passed": true,
+      "duration_ms": 1565.8
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "suite_id": "planning_v1",
+  "schema_version": "0.1",
+  "cases": [
+    {"case_id":"local_01","instruction":"把 Lamp 放到 Desk 右侧","route":"local","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[1.78,0,1.5]}]},
+    {"case_id":"local_02","instruction":"把 Lamp 放到 Desk 左侧","route":"local","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[-1.78,0,1.5]}]},
+    {"case_id":"local_03","instruction":"把 Lamp 放到 Desk 中央","route":"local","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0,0,1.5]}]},
+    {"case_id":"local_04","instruction":"把 Lamp 放到 Desk 前侧","route":"local","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0,-0.78,1.5]}]},
+    {"case_id":"local_05","instruction":"Lamp 向右移动 20 厘米","route":"local","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0.2,0,0.5]}]},
+    {"case_id":"local_06","instruction":"Lamp 向前移动 100 毫米","route":"local","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0,-0.1,0.5]}]},
+    {"case_id":"local_07","instruction":"锁定 Desk","route":"local","allowed_changes":["desk-id"],"goals":[{"object_id":"desk-id","locked":true,"location":[0,0,0.5]}]},
+    {"case_id":"local_08","instruction":"解除锁定 Desk","route":"local","initial_locked":["desk-id"],"allowed_changes":["desk-id"],"goals":[{"object_id":"desk-id","locked":false,"location":[0,0,0.5]}]},
+    {"case_id":"ai_01","instruction":"让 Lamp 落在 Desk 顶面的右侧，Desk 保持原样","route":"ai","replay_key":"place_right","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[1.78,0,1.5]}]},
+    {"case_id":"ai_02","instruction":"请把 Lamp 安排在 Desk 顶面左侧，Desk 保持原样","route":"ai","replay_key":"place_left","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[-1.78,0,1.5]}]},
+    {"case_id":"ai_03","instruction":"希望 Lamp 位于 Desk 顶面正中央，Desk 保持原样","route":"ai","replay_key":"place_center","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0,0,1.5]}]},
+    {"case_id":"ai_04","instruction":"让 Lamp 落在 Desk 顶面的后侧，Desk 保持原样","route":"ai","replay_key":"place_back","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0,0.78,1.5]}]},
+    {"case_id":"ai_05","instruction":"希望 Lamp 在现在位置向世界右方挪二十厘米，其他对象包括 Desk 都别动","route":"ai","replay_key":"move_right","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0.2,0,0.5]}]},
+    {"case_id":"ai_06","instruction":"请让 Lamp 沿世界前方偏移十厘米，其他物体保持原样","route":"ai","replay_key":"move_front","allowed_changes":["lamp-id"],"goals":[{"object_id":"lamp-id","location":[0,-0.1,0.5]}]},
+    {"case_id":"ai_07","instruction":"请启用 Desk 的锁定保护，所有物体位置保持不变","route":"ai","replay_key":"lock_desk","allowed_changes":["desk-id"],"goals":[{"object_id":"desk-id","locked":true,"location":[0,0,0.5]}]},
+    {"case_id":"ai_08","instruction":"希望 Lamp 落在 Desk 顶面右侧，摆好后启用 Desk 的锁定保护","route":"ai","replay_key":"place_lock","allowed_changes":["lamp-id","desk-id"],"goals":[{"object_id":"lamp-id","location":[1.78,0,1.5]},{"object_id":"desk-id","locked":true,"location":[0,0,0.5]}]},
+    {"case_id":"reject_01","instruction":"Lamp 向右移动 20 厘米","route":"local","initial_locked":["lamp-id"],"allowed_changes":[],"expect_rejection":["OBJECT_LOCKED"],"goals":[]},
+    {"case_id":"reject_02","instruction":"Ghost 向右移动 20 厘米","route":"local","allowed_changes":[],"expect_rejection":["OBJECT_NOT_FOUND"],"goals":[]},
+    {"case_id":"reject_03","instruction":"Lamp 向右移动 0 厘米","route":"local","allowed_changes":[],"expect_rejection":["PRECONDITION_FAILED"],"goals":[]},
+    {"case_id":"reject_04","instruction":"请重新安排已锁定的 Desk，让它往右挪二十厘米","route":"ai","initial_locked":["desk-id"],"replay_key":"unlock_move","allowed_changes":[],"expect_rejection":["OBJECT_LOCKED","PROVIDER_OUTPUT_INVALID"],"goals":[]}
+  ],
+  "replay_plans": {
+    "place_right":{"schema_version":"0.1","actions":[{"action_id":"p","type":"place_on","object_id":"lamp-id","target_id":"desk-id","region":"right","clearance":0}],"constraints":[{"constraint_id":"c","type":"preserve_transform","object_id":"desk-id","severity":"hard"}],"user_summary":"把 Lamp 放在 Desk 右侧"},
+    "place_left":{"schema_version":"0.1","actions":[{"action_id":"p","type":"place_on","object_id":"lamp-id","target_id":"desk-id","region":"left","clearance":0}],"constraints":[{"constraint_id":"c","type":"preserve_transform","object_id":"desk-id","severity":"hard"}],"user_summary":"把 Lamp 放在 Desk 左侧"},
+    "place_center":{"schema_version":"0.1","actions":[{"action_id":"p","type":"place_on","object_id":"lamp-id","target_id":"desk-id","region":"center","clearance":0}],"constraints":[{"constraint_id":"c","type":"preserve_transform","object_id":"desk-id","severity":"hard"}],"user_summary":"把 Lamp 放在 Desk 中央"},
+    "place_back":{"schema_version":"0.1","actions":[{"action_id":"p","type":"place_on","object_id":"lamp-id","target_id":"desk-id","region":"back","clearance":0}],"constraints":[{"constraint_id":"c","type":"preserve_transform","object_id":"desk-id","severity":"hard"}],"user_summary":"把 Lamp 放在 Desk 后侧"},
+    "move_right":{"schema_version":"0.1","actions":[{"action_id":"m","type":"move","object_id":"lamp-id","delta":[0.2,0,0],"space":"world"}],"constraints":[],"user_summary":"向右移动 Lamp"},
+    "move_front":{"schema_version":"0.1","actions":[{"action_id":"m","type":"move","object_id":"lamp-id","delta":[0,-0.1,0],"space":"world"}],"constraints":[],"user_summary":"向前移动 Lamp"},
+    "lock_desk":{"schema_version":"0.1","actions":[{"action_id":"l","type":"lock","object_id":"desk-id"}],"constraints":[{"constraint_id":"c","type":"preserve_transform","object_id":"desk-id","severity":"hard"}],"user_summary":"锁定 Desk"},
+    "place_lock":{"schema_version":"0.1","actions":[{"action_id":"p","type":"place_on","object_id":"lamp-id","target_id":"desk-id","region":"right","clearance":0},{"action_id":"l","type":"lock","object_id":"desk-id"}],"constraints":[{"constraint_id":"c","type":"preserve_transform","object_id":"desk-id","severity":"hard"}],"user_summary":"摆放 Lamp 并锁定 Desk"},
+    "unlock_move":{"schema_version":"0.1","actions":[{"action_id":"u","type":"unlock","object_id":"desk-id"},{"action_id":"m","type":"move","object_id":"desk-id","delta":[0.2,0,0],"space":"world"}],"constraints":[],"user_summary":"移动 Desk"}
+  }
+}

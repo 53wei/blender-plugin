@@ -1,0 +1,8 @@
+# Markdown 行尾双空格用于显式换行，保留原文排版。
+*.md whitespace=-blank-at-eol
+
+# 安装包与图像、演示场景、Word 原始规范按二进制处理。
+*.png binary
+*.blend binary
+*.docx binary
+*.zip binary

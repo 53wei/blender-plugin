@@ -1,0 +1,15 @@
+{
+  "case_id": "m1-demo-001",
+  "fixture": "desk_lamp.blend",
+  "instruction": "Place Lamp on the right side of Desk and protect Desk",
+  "initial_assertions": [
+    {"type": "exists", "object": "Desk"},
+    {"type": "exists", "object": "Lamp"}
+  ],
+  "expected_constraints": [
+    {"type": "on", "object": "Lamp", "target": "Desk"},
+    {"type": "region_right", "object": "Lamp", "target": "Desk"},
+    {"type": "preserve_transform", "object": "Desk"},
+    {"type": "locked", "object": "Desk"}
+  ]
+}

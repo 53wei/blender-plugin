@@ -1,0 +1,18 @@
+{
+  "extension_version": "0.6.2",
+  "blender_version": "4.5.12 LTS",
+  "mode": "live_local_ui",
+  "model": "qwen/qwen3-4b-2507",
+  "output_format": "json_schema",
+  "installed_package": false,
+  "ai_data_review_required": true,
+  "preview_was_read_only": true,
+  "confirmed_execution_verified": true,
+  "independent_task_goal_passed": true,
+  "task_unauthorized_changes": [],
+  "network_requests": 1,
+  "repair_count": 0,
+  "input_tokens": 628,
+  "output_tokens": 92,
+  "duration_ms": 1171.36
+}

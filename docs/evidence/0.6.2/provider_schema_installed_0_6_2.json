@@ -1,0 +1,19 @@
+{
+  "blender_version": "4.5.12 LTS",
+  "extension_version": "0.6.2",
+  "online_mode": true,
+  "connection_status": "SUCCESS",
+  "selected_model_available": true,
+  "cancellation_status": "CANCELED",
+  "scene_unchanged": true,
+  "plan_not_created": true,
+  "poll_failure_cleaned_up": true,
+  "ai_data_review_required": true,
+  "ai_plan_previewed_before_execution": true,
+  "ai_plan_verified_after_confirmation": true,
+  "ai_planning_cancel_is_read_only": true,
+  "ai_stale_result_rejected": true,
+  "trusted_action_preview_passed": true,
+  "output_format": "json_schema",
+  "installed_package": true
+}

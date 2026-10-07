@@ -1,0 +1,552 @@
+{
+  "schema_version": "0.1",
+  "extension_version": "0.6.2",
+  "suite_id": "planning_v1",
+  "suite_sha256": "f502dc646a6d2373a397d0cb0a7a9cee7e01a8483a757395c0b14c7b1082f39d",
+  "mode": "live",
+  "case_count": 20,
+  "passed_count": 20,
+  "positive_task_count": 16,
+  "task_success_count": 16,
+  "expected_rejection_count": 4,
+  "correct_rejection_count": 4,
+  "network_request_count": 9,
+  "local_task_count": 11,
+  "skipped_count": 0,
+  "measured_ai_task_count": 8,
+  "real_model_success_rate": 1.0,
+  "task_unauthorized_change_count": 0,
+  "results": [
+    {
+      "case_id": "local_01",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 1.15
+    },
+    {
+      "case_id": "local_02",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 1.2
+    },
+    {
+      "case_id": "local_03",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 1.01
+    },
+    {
+      "case_id": "local_04",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 1.2
+    },
+    {
+      "case_id": "local_05",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 0.95
+    },
+    {
+      "case_id": "local_06",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 0.93
+    },
+    {
+      "case_id": "local_07",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "desk-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 0.86
+    },
+    {
+      "case_id": "local_08",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "desk-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 0.88
+    },
+    {
+      "case_id": "ai_01",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 628,
+        "output_tokens": 92,
+        "estimated_cost": null,
+        "latency_ms": 1239
+      },
+      "duration_ms": 1240.87
+    },
+    {
+      "case_id": "ai_02",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 628,
+        "output_tokens": 91,
+        "estimated_cost": null,
+        "latency_ms": 1048
+      },
+      "duration_ms": 1049.12
+    },
+    {
+      "case_id": "ai_03",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 626,
+        "output_tokens": 93,
+        "estimated_cost": null,
+        "latency_ms": 1014
+      },
+      "duration_ms": 1016.82
+    },
+    {
+      "case_id": "ai_04",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 629,
+        "output_tokens": 93,
+        "estimated_cost": null,
+        "latency_ms": 1082
+      },
+      "duration_ms": 1083.68
+    },
+    {
+      "case_id": "ai_05",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 631,
+        "output_tokens": 71,
+        "estimated_cost": null,
+        "latency_ms": 885
+      },
+      "duration_ms": 886.65
+    },
+    {
+      "case_id": "ai_06",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 581,
+        "output_tokens": 71,
+        "estimated_cost": null,
+        "latency_ms": 842
+      },
+      "duration_ms": 843.77
+    },
+    {
+      "case_id": "ai_07",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "desk-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 574,
+        "output_tokens": 72,
+        "estimated_cost": null,
+        "latency_ms": 873
+      },
+      "duration_ms": 874.51
+    },
+    {
+      "case_id": "ai_08",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": true,
+      "expected_rejection": false,
+      "rejection_passed": false,
+      "execution_status": "COMMITTED",
+      "error_code": null,
+      "goal_checks": [
+        {
+          "object_id": "lamp-id",
+          "passed": true
+        },
+        {
+          "object_id": "desk-id",
+          "passed": true
+        }
+      ],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": false,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 630,
+        "output_tokens": 87,
+        "estimated_cost": null,
+        "latency_ms": 967
+      },
+      "duration_ms": 968.74
+    },
+    {
+      "case_id": "reject_01",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": false,
+      "expected_rejection": true,
+      "rejection_passed": true,
+      "execution_status": "REJECTED",
+      "error_code": "OBJECT_LOCKED",
+      "goal_checks": [],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": true,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 0.25
+    },
+    {
+      "case_id": "reject_02",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": false,
+      "expected_rejection": true,
+      "rejection_passed": true,
+      "execution_status": "REJECTED",
+      "error_code": "OBJECT_NOT_FOUND",
+      "goal_checks": [],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": true,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 0.23
+    },
+    {
+      "case_id": "reject_03",
+      "mode": "live",
+      "route": "local",
+      "passed": true,
+      "task_success": false,
+      "expected_rejection": true,
+      "rejection_passed": true,
+      "execution_status": "REJECTED",
+      "error_code": "PRECONDITION_FAILED",
+      "goal_checks": [],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": true,
+      "planner_invocations": 0,
+      "network_requests": 0,
+      "repair_count": 0,
+      "usage": null,
+      "duration_ms": 0.23
+    },
+    {
+      "case_id": "reject_04",
+      "mode": "live",
+      "route": "ai",
+      "passed": true,
+      "task_success": false,
+      "expected_rejection": true,
+      "rejection_passed": true,
+      "execution_status": "REJECTED",
+      "error_code": "OBJECT_LOCKED",
+      "goal_checks": [],
+      "task_unauthorized_changes": [],
+      "scene_unchanged": true,
+      "planner_invocations": 1,
+      "network_requests": 1,
+      "repair_count": 0,
+      "usage": {
+        "provider": "openai_compatible",
+        "model": "qwen/qwen3-4b-2507",
+        "input_tokens": 576,
+        "output_tokens": 65,
+        "estimated_cost": null,
+        "latency_ms": 790
+      },
+      "duration_ms": 790.29
+    }
+  ],
+  "engine": "blender_4.5.12_LTS",
+  "model": "qwen/qwen3-4b-2507",
+  "max_requests": 18,
+  "output_format": "json_schema"
+}

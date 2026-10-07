@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.blend1
+*.zip
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.qa_spec/
+.blender_test_user/
+.blender_test_user_*/
+.env
+.env.*
+!.env.example
+benchmarks/results/*.json
+!benchmarks/results/.gitkeep
