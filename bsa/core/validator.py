@@ -4,18 +4,26 @@ from __future__ import annotations
 
 import math
 
-from .fingerprint import fingerprint_snapshot
 from ..domain.actions import (
     ActionPlan,
     LockAction,
     MoveAction,
     PlaceOnAction,
     RelativePlaceAction,
+    RotateAction,
+    ScaleUniformAction,
     UnlockAction,
 )
 from ..domain.errors import DomainError, ErrorCode
 from ..domain.scene import SceneSnapshot
-from ..infra.config import MAX_ACTIONS, MAX_DISTANCE
+from ..infra.config import (
+    MAX_ACTIONS,
+    MAX_DISTANCE,
+    MAX_ROTATION_RADIANS,
+    MAX_UNIFORM_SCALE_FACTOR,
+    MIN_UNIFORM_SCALE_FACTOR,
+)
+from .fingerprint import fingerprint_snapshot
 
 
 def relevant_object_ids(plan: ActionPlan) -> tuple[str, ...]:
@@ -90,7 +98,25 @@ class PlanValidator:
                     "AI cannot unlock objects; use an explicit local unlock instruction first",
                     {"object_id": obj.object_id},
                 )
-            writes_transform = isinstance(action, (PlaceOnAction, RelativePlaceAction, MoveAction))
+            if plan.source == "llm" and isinstance(
+                action,
+                (RelativePlaceAction, RotateAction, ScaleUniformAction),
+            ):
+                raise DomainError(
+                    ErrorCode.ACTION_NOT_SUPPORTED,
+                    "AI cannot use guided-only transform actions",
+                    {"action_type": action.type},
+                )
+            writes_transform = isinstance(
+                action,
+                (
+                    PlaceOnAction,
+                    RelativePlaceAction,
+                    MoveAction,
+                    RotateAction,
+                    ScaleUniformAction,
+                ),
+            )
             if writes_transform and locked_state[action.object_id]:
                 raise DomainError(
                     ErrorCode.OBJECT_LOCKED,
@@ -113,6 +139,28 @@ class PlanValidator:
                         ErrorCode.PRECONDITION_FAILED,
                         "Move distance is outside the safe range",
                     )
+            if isinstance(action, RotateAction) and not (
+                0.0 < abs(action.angle_radians) <= MAX_ROTATION_RADIANS
+            ):
+                raise DomainError(
+                    ErrorCode.PRECONDITION_FAILED,
+                    "Rotation angle is outside the safe range",
+                )
+            if isinstance(action, RotateAction) and obj.parent_id is not None:
+                raise DomainError(
+                    ErrorCode.SPATIAL_UNSUPPORTED_GEOMETRY,
+                    "Guided local-axis rotation does not support parented objects yet",
+                    {"object_id": obj.object_id, "parent_id": obj.parent_id},
+                )
+            if isinstance(action, ScaleUniformAction) and not (
+                MIN_UNIFORM_SCALE_FACTOR
+                <= action.factor
+                <= MAX_UNIFORM_SCALE_FACTOR
+            ):
+                raise DomainError(
+                    ErrorCode.PRECONDITION_FAILED,
+                    "Uniform scale factor is outside the safe range",
+                )
             if isinstance(action, PlaceOnAction) and not 0.0 <= action.clearance <= MAX_DISTANCE:
                 raise DomainError(
                     ErrorCode.PRECONDITION_FAILED,
