@@ -4,21 +4,38 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 import bpy
+from bpy.props import CollectionProperty, StringProperty
+from bpy.types import OperatorFileListElement
+from bpy_extras.io_utils import ExportHelper, ImportHelper
 
 from ..application.assistant_state import (
     AssistantEvent,
     AssistantStatus,
     next_status,
 )
-from ..application.service import SceneEditingService
+from ..application.guided_workflow import GuidedWorkflowPlanBuilder
 from ..application.plan_preview import describe_plan
+from ..application.service import SceneEditingService
+from ..blender_adapter.camera_controller import (
+    apply_camera_frame_plan,
+    render_camera_png,
+)
 from ..blender_adapter.ids import ensure_stable_ids, stable_id
+from ..blender_adapter.model_importer import import_model_files
 from ..blender_adapter.scene_port import BlenderScenePort
+from ..core.camera_framing import (
+    CameraFramePlan,
+    build_camera_frame_plan,
+    describe_camera_plan,
+    validate_camera_plan_current,
+)
 from ..core.fingerprint import fingerprint_snapshot
+from ..core.model_import import MODEL_FILE_FILTER
 from ..core.validator import PlanValidator, relevant_object_ids
 from ..domain.actions import (
     ActionPlan,
@@ -30,8 +47,8 @@ from ..domain.errors import DomainError, ErrorCode
 from ..domain.scene import SceneSnapshot
 from ..infra.credentials import CredentialSource, resolve_api_key
 from ..infra.provider_process import ProviderWorkerTask, WorkerOutcome
-from ..planner.local_parser import LocalIntentParser
 from ..planner.context_builder import ContextBuilder
+from ..planner.local_parser import LocalIntentParser
 from ..planner.openai_compatible import (
     ProviderConnectionConfig,
     ProviderError,
@@ -43,7 +60,6 @@ from ..planner.plan_candidate import (
     candidate_action_schema,
 )
 from ..planner.provider import PlannerRequest
-
 
 _ERROR_MESSAGES = {
     ErrorCode.PLAN_SCHEMA_INVALID: (
@@ -103,7 +119,9 @@ _PROVIDER_ERROR_MESSAGES = {
     ProviderErrorCode.INVALID_CONFIG.value: "请检查 API 地址、模型和超时设置",
     ProviderErrorCode.AUTHENTICATION_FAILED.value: "API Key 无效或没有访问权限",
     ProviderErrorCode.RATE_LIMITED.value: "请求过于频繁或账户额度受限",
-    ProviderErrorCode.CONNECTION_FAILED.value: "无法连接模型服务，请检查地址和网络",
+    ProviderErrorCode.CONNECTION_FAILED.value: (
+        "无法连接模型服务，请检查地址和网络"
+    ),
     ProviderErrorCode.TIMEOUT.value: "连接模型服务超时",
     ProviderErrorCode.INVALID_RESPONSE.value: "服务返回的模型列表不兼容",
     ProviderErrorCode.SERVER_ERROR.value: "模型服务暂时不可用",
@@ -146,6 +164,39 @@ def _store_preview(settings: object, plan: ActionPlan, snapshot: SceneSnapshot) 
     _transition(settings, AssistantEvent.PREVIEW_READY)
 
 
+def _set_domain_failure(settings: object, error: DomainError) -> None:
+    """Show one structured domain error without losing its recovery boundary."""
+
+    settings.result_text, settings.result_detail = _friendly_error(error.code)
+    if error.message:
+        settings.result_detail = error.message
+    settings.last_assistant_message = f"{settings.result_text}。{settings.result_detail}"
+    _transition(settings, AssistantEvent.FAILED)
+
+
+def _selected_object_ids(context: object, *, mesh_only: bool = False) -> tuple[str, ...]:
+    """Return stable IDs in a deterministic order for current Blender selection."""
+
+    selected = tuple(
+        obj
+        for obj in context.selected_objects
+        if not mesh_only or obj.type == "MESH"
+    )
+    if not selected:
+        raise DomainError(ErrorCode.PRECONDITION_FAILED, "请先在视图中选择模型")
+    ensure_stable_ids(selected)
+    return tuple(
+        stable_id(obj)
+        for obj in sorted(selected, key=lambda item: (item.name.casefold(), item.name))
+    )
+
+
+def _store_guided_preview(context: object, plan: ActionPlan) -> None:
+    snapshot = BlenderScenePort(context.scene).read_snapshot()
+    _store_preview(context.scene.bsa_settings, plan, snapshot)
+    context.window_manager.bsa_provider_session.last_plan_source = "ui"
+
+
 def _set_provider_error(session: object, code: str, fallback: str = "") -> None:
     """只把稳定、安全的中文错误写入 UI。"""
 
@@ -178,7 +229,8 @@ def _apply_provider_outcome(session: object, outcome: WorkerOutcome) -> None:
     model_available = outcome.result.get("model_available")
     if model_available is False:
         session.connection_message = (
-            f"服务可连接，共发现 {len(models)} 个模型；填写的模型不在返回列表中"
+            f"服务可连接，共发现 {len(models)} 个模型；"
+            "填写的模型不在返回列表中"
         )
     elif model_available is True:
         session.connection_message = (
@@ -312,7 +364,8 @@ def _apply_ai_outcome(
         if isinstance(error, DomainError):
             message, detail = _friendly_error(error.code)
         else:
-            message, detail = "AI 计划格式无效", "候选计划未进入执行层，场景保持原状"
+            message = "AI 计划格式无效"
+            detail = "候选计划未进入执行层，场景保持原状"
         _set_ai_failure(settings, session, message, detail)
         _clear_pending_ai(session)
 
@@ -460,7 +513,9 @@ class BSA_OT_start_ai_planning(bpy.types.Operator):
 
     bl_idname = "bsa.start_ai_planning"
     bl_label = "同意并调用 AI"
-    bl_description = "发送界面中列出的最小数据，生成候选计划；不会直接修改场景"
+    bl_description = (
+        "发送界面中列出的最小数据，生成候选计划；不会直接修改场景"
+    )
 
     def execute(self, context: object) -> set[str]:
         global _AI_TASK, _AI_TIMER_ACTIVE, _AI_REVIEW_SNAPSHOT, _AI_PLANNING_SNAPSHOT
@@ -632,6 +687,269 @@ class BSA_OT_launch_assistant(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class BSA_OT_import_models(bpy.types.Operator, ImportHelper):
+    """Import one or more existing model files as a recoverable batch."""
+
+    bl_idname = "bsa.import_models"
+    bl_label = "导入模型文件"
+    bl_description = "导入 BLEND、FBX、OBJ、GLB/GLTF、STL 或 PLY，并选中新模型"
+    bl_options = {"REGISTER", "UNDO"}
+
+    filename_ext = ""
+    filter_glob: StringProperty(default=MODEL_FILE_FILTER, options={"HIDDEN"})
+    files: CollectionProperty(type=OperatorFileListElement, options={"HIDDEN", "SKIP_SAVE"})
+    directory: StringProperty(subtype="DIR_PATH", options={"HIDDEN", "SKIP_SAVE"})
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        paths = tuple(Path(self.directory) / item.name for item in self.files)
+        if not paths and self.filepath:
+            paths = (Path(self.filepath),)
+        try:
+            result = import_model_files(context, paths)
+        except DomainError as error:
+            _set_domain_failure(settings, error)
+            self.report({"ERROR"}, settings.result_detail)
+            return {"CANCELLED"}
+        settings.workflow_section = "PLACE"
+        settings.result_text = f"已导入 {len(result.files)} 个文件"
+        settings.result_detail = f"新增 {len(result.object_names)} 个物体，已全部选中"
+        settings.last_assistant_message = (
+            "模型已经导入。下一步可以先点击“落到地面”，再排列或调整大小。"
+        )
+        settings.plan_json = ""
+        _transition(settings, AssistantEvent.CLEARED)
+        self.report({"INFO"}, settings.result_text)
+        return {"FINISHED"}
+
+
+class BSA_OT_preview_ground(bpy.types.Operator):
+    bl_idname = "bsa.preview_ground"
+    bl_label = "预览落到地面"
+    bl_description = "计算所选模型落到世界坐标 Z=0 的动作，确认后才执行"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        try:
+            port = BlenderScenePort(context.scene)
+            snapshot = port.read_snapshot()
+            plan = GuidedWorkflowPlanBuilder().ground(
+                snapshot,
+                _selected_object_ids(context, mesh_only=True),
+            )
+            _store_guided_preview(context, plan)
+            return {"FINISHED"}
+        except DomainError as error:
+            _set_domain_failure(settings, error)
+            self.report({"WARNING"}, settings.result_detail)
+            return {"CANCELLED"}
+
+
+class BSA_OT_preview_align(bpy.types.Operator):
+    bl_idname = "bsa.preview_align"
+    bl_label = "预览对齐"
+    bl_description = "以活动物体为基准，对齐其他所选模型；确认后才执行"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        try:
+            snapshot = BlenderScenePort(context.scene).read_snapshot()
+            object_ids = _selected_object_ids(context, mesh_only=True)
+            reference = context.view_layer.objects.active
+            if reference is None or reference.type != "MESH" or not reference.select_get():
+                raise DomainError(
+                    ErrorCode.PRECONDITION_FAILED,
+                    "请让一个所选模型保持为活动物体，作为对齐基准",
+                )
+            ensure_stable_ids((reference,))
+            plan = GuidedWorkflowPlanBuilder().align(
+                snapshot,
+                object_ids,
+                reference_id=stable_id(reference),
+                axis=settings.layout_axis,
+                anchor=settings.align_anchor,
+            )
+            _store_guided_preview(context, plan)
+            return {"FINISHED"}
+        except DomainError as error:
+            _set_domain_failure(settings, error)
+            self.report({"WARNING"}, settings.result_detail)
+            return {"CANCELLED"}
+
+
+class BSA_OT_preview_grid(bpy.types.Operator):
+    bl_idname = "bsa.preview_grid"
+    bl_label = "预览网格排列"
+    bl_description = "按模型最大尺寸与指定间隙生成网格动作，确认后才执行"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        try:
+            snapshot = BlenderScenePort(context.scene).read_snapshot()
+            plan = GuidedWorkflowPlanBuilder().grid(
+                snapshot,
+                _selected_object_ids(context, mesh_only=True),
+                columns=settings.grid_columns,
+                gap=settings.layout_gap,
+            )
+            _store_guided_preview(context, plan)
+            return {"FINISHED"}
+        except DomainError as error:
+            _set_domain_failure(settings, error)
+            self.report({"WARNING"}, settings.result_detail)
+            return {"CANCELLED"}
+
+
+class BSA_OT_preview_rotate(bpy.types.Operator):
+    bl_idname = "bsa.preview_rotate"
+    bl_label = "预览旋转"
+    bl_description = "为所选模型生成本地轴旋转计划，确认后才执行"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        try:
+            snapshot = BlenderScenePort(context.scene).read_snapshot()
+            plan = GuidedWorkflowPlanBuilder().rotate(
+                snapshot,
+                _selected_object_ids(context, mesh_only=True),
+                axis=settings.rotation_axis,
+                angle_degrees=settings.rotation_degrees,
+            )
+            _store_guided_preview(context, plan)
+            return {"FINISHED"}
+        except DomainError as error:
+            _set_domain_failure(settings, error)
+            self.report({"WARNING"}, settings.result_detail)
+            return {"CANCELLED"}
+
+
+class BSA_OT_preview_scale(bpy.types.Operator):
+    bl_idname = "bsa.preview_scale"
+    bl_label = "预览等比缩放"
+    bl_description = "为所选模型生成等比缩放计划，确认后才执行"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        try:
+            snapshot = BlenderScenePort(context.scene).read_snapshot()
+            plan = GuidedWorkflowPlanBuilder().scale(
+                snapshot,
+                _selected_object_ids(context, mesh_only=True),
+                factor=settings.scale_factor,
+            )
+            _store_guided_preview(context, plan)
+            return {"FINISHED"}
+        except DomainError as error:
+            _set_domain_failure(settings, error)
+            self.report({"WARNING"}, settings.result_detail)
+            return {"CANCELLED"}
+
+
+class BSA_OT_preview_camera(bpy.types.Operator):
+    bl_idname = "bsa.preview_camera"
+    bl_label = "生成取景预览"
+    bl_description = "根据物体边界计算相机位置；此时不会创建或移动相机"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        try:
+            snapshot = BlenderScenePort(context.scene).read_snapshot()
+            if settings.camera_scope == "SELECTED":
+                object_ids = _selected_object_ids(context, mesh_only=True)
+            else:
+                object_ids = tuple(
+                    obj.object_id
+                    for obj in snapshot.objects
+                    if obj.object_type == "MESH" and obj.visible
+                )
+            plan = build_camera_frame_plan(
+                snapshot,
+                object_ids,
+                lens_mm=settings.camera_lens_mm,
+                aspect_ratio=settings.render_width / settings.render_height,
+                margin=settings.camera_margin,
+            )
+            settings.camera_plan_json = json.dumps(plan.to_dict(), ensure_ascii=False)
+            settings.camera_preview_text = describe_camera_plan(plan, snapshot)
+            settings.result_text = "取景计划已生成，场景尚未修改"
+            settings.result_detail = "检查焦距、留白和取景对象后再确认"
+            return {"FINISHED"}
+        except DomainError as error:
+            settings.camera_plan_json = ""
+            _set_domain_failure(settings, error)
+            self.report({"WARNING"}, settings.result_detail)
+            return {"CANCELLED"}
+
+
+class BSA_OT_confirm_camera(bpy.types.Operator):
+    bl_idname = "bsa.confirm_camera"
+    bl_label = "确认并应用相机"
+    bl_description = "重新检查取景对象后创建或移动场景相机"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        if not settings.camera_plan_json:
+            self.report({"WARNING"}, "请先生成取景预览")
+            return {"CANCELLED"}
+        try:
+            payload = json.loads(settings.camera_plan_json)
+            if not isinstance(payload, dict):
+                raise DomainError(ErrorCode.PLAN_SCHEMA_INVALID, "取景计划格式无效")
+            plan = CameraFramePlan.from_dict(payload)
+            snapshot = BlenderScenePort(context.scene).read_snapshot()
+            validate_camera_plan_current(plan, snapshot)
+            apply_camera_frame_plan(context.scene, plan)
+        except (json.JSONDecodeError, DomainError) as error:
+            domain_error = (
+                error
+                if isinstance(error, DomainError)
+                else DomainError(ErrorCode.PLAN_SCHEMA_INVALID, "取景计划格式无效")
+            )
+            settings.camera_plan_json = ""
+            _set_domain_failure(settings, domain_error)
+            self.report({"ERROR"}, settings.result_detail)
+            return {"CANCELLED"}
+        settings.camera_plan_json = ""
+        settings.camera_preview_text = "相机已应用；可以导出 PNG"
+        settings.result_text = "相机已创建或更新"
+        settings.result_detail = "目标模型已通过确定性边界取景检查"
+        settings.last_assistant_message = (
+            "取景完成。现在可以导出一张 PNG 检查效果。"
+        )
+        self.report({"INFO"}, settings.result_text)
+        return {"FINISHED"}
+
+
+class BSA_OT_export_png(bpy.types.Operator, ExportHelper):
+    bl_idname = "bsa.export_png"
+    bl_label = "导出 PNG"
+    bl_description = "使用当前场景相机渲染 PNG，并恢复原有渲染设置"
+
+    filename_ext = ".png"
+    filter_glob: StringProperty(default="*.png", options={"HIDDEN"})
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_settings
+        try:
+            output = render_camera_png(
+                context.scene,
+                self.filepath,
+                resolution_x=settings.render_width,
+                resolution_y=settings.render_height,
+                transparent=settings.render_transparent,
+            )
+        except DomainError as error:
+            _set_domain_failure(settings, error)
+            self.report({"ERROR"}, settings.result_detail)
+            return {"CANCELLED"}
+        settings.result_text = "PNG 已导出"
+        settings.result_detail = str(output)
+        settings.last_assistant_message = f"图片已经导出到 {output.name}。"
+        self.report({"INFO"}, settings.result_text)
+        return {"FINISHED"}
+
+
 class BSA_OT_preview_instruction(bpy.types.Operator):
     """本地优先；无法可靠解析时先生成 AI 数据预览。"""
 
@@ -674,7 +992,7 @@ class BSA_OT_preview_instruction(bpy.types.Operator):
                         "Parsed object disappeared before preview",
                     )
 
-                # 先同步手动字段，最后再写入计划，避免 update 回调清除新预览。
+                # 先同步手动字段，最后再写入计划，避免 update 回调清除预览。
                 settings.source_object = source
                 settings.target_object = target
                 settings.region = placement.region
@@ -872,10 +1190,14 @@ class BSA_OT_clear(bpy.types.Operator):
         _AI_REVIEW_SNAPSHOT = None
         settings.plan_json = ""
         settings.preview_text = "尚未生成计划"
+        settings.camera_plan_json = ""
+        settings.camera_preview_text = "尚未生成取景计划"
         settings.result_text = "尚未执行操作"
         settings.result_detail = ""
         settings.result_json = ""
         settings.last_user_message = ""
-        settings.last_assistant_message = "我已准备好。请告诉我你想怎样调整场景。"
+        settings.last_assistant_message = (
+            "我已准备好。请告诉我你想怎样调整场景。"
+        )
         _transition(settings, AssistantEvent.CLEARED)
         return {"FINISHED"}

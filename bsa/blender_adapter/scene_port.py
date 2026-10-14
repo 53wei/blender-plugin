@@ -7,11 +7,11 @@ from dataclasses import dataclass
 import bpy
 from mathutils import Matrix, Vector
 
-from .ids import LOCK_PROPERTY, ensure_stable_ids, stable_id
-from .scene_reader import read_scene_snapshot
 from ..domain.errors import DomainError, ErrorCode
 from ..domain.scene import SceneSnapshot, Vector3
 from ..infra.config import LOCK_TRANSFORM_EPS
+from .ids import LOCK_PROPERTY, ensure_stable_ids, stable_id
+from .scene_reader import read_scene_snapshot
 
 
 @dataclass(frozen=True)
@@ -71,7 +71,11 @@ class BlenderScenePort:
             current = tuple(
                 float(obj.matrix_world[row][column]) for row in range(4) for column in range(4)
             )
-            if max(abs(left - right) for left, right in zip(current, state.matrix_world, strict=True)) > LOCK_TRANSFORM_EPS:
+            matrix_delta = max(
+                abs(left - right)
+                for left, right in zip(current, state.matrix_world, strict=True)
+            )
+            if matrix_delta > LOCK_TRANSFORM_EPS:
                 return False
             if bool(obj.get(LOCK_PROPERTY, False)) is not state.locked:
                 return False
@@ -88,6 +92,29 @@ class BlenderScenePort:
         matrix = obj.matrix_world.copy()
         matrix.translation = Vector(location_world)
         obj.matrix_world = matrix
+        bpy.context.view_layer.update()
+
+    def apply_rotation(self, object_id: str, axis: str, angle_radians: float) -> None:
+        obj = self._object(object_id)
+        if bool(obj.get(LOCK_PROPERTY, False)):
+            raise DomainError(
+                ErrorCode.OBJECT_LOCKED,
+                "Locked object cannot be rotated",
+                {"object_id": object_id},
+            )
+        axis_index = {"x": 0, "y": 1, "z": 2}[axis]
+        obj.rotation_euler[axis_index] += angle_radians
+        bpy.context.view_layer.update()
+
+    def apply_uniform_scale(self, object_id: str, factor: float) -> None:
+        obj = self._object(object_id)
+        if bool(obj.get(LOCK_PROPERTY, False)):
+            raise DomainError(
+                ErrorCode.OBJECT_LOCKED,
+                "Locked object cannot be scaled",
+                {"object_id": object_id},
+            )
+        obj.scale = tuple(float(value) * factor for value in obj.scale)
         bpy.context.view_layer.update()
 
     def set_locked(self, object_id: str, locked: bool) -> None:

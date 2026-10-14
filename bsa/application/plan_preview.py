@@ -9,6 +9,8 @@ from ..domain.actions import (
     PlaceOnAction,
     PreserveTransformConstraint,
     RelativePlaceAction,
+    RotateAction,
+    ScaleUniformAction,
     UnlockAction,
 )
 from ..domain.scene import SceneSnapshot
@@ -48,6 +50,14 @@ def describe_plan(plan: ActionPlan, snapshot: SceneSnapshot) -> str:
                 f"相对摆放 {name} → {names.get(action.target_id, action.target_id)}："
                 f"{action.relation}，间距 {action.distance * snapshot.unit_scale:.6g} 米"
             )
+        elif isinstance(action, RotateAction):
+            axis_label = action.axis.upper()
+            detail = (
+                f"将 {name} 绕本地 {axis_label} 轴旋转 "
+                f"{action.angle_radians * 180.0 / 3.141592653589793:.6g}°"
+            )
+        elif isinstance(action, ScaleUniformAction):
+            detail = f"将 {name} 等比缩放为当前的 {action.factor:.6g} 倍"
         else:
             raise ValueError("无法展示未知动作")
         lines.append(f"{index}. {detail}")

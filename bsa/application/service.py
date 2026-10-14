@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from .ports import ScenePort
 from ..core.spatial import place_on_location, relative_place_location
 from ..core.validator import PlanValidator, affected_object_ids
 from ..core.verifier import Verifier
@@ -12,10 +11,13 @@ from ..domain.actions import (
     MoveAction,
     PlaceOnAction,
     RelativePlaceAction,
+    RotateAction,
+    ScaleUniformAction,
     UnlockAction,
 )
 from ..domain.errors import DomainError, ErrorCode
 from ..domain.results import ExecutionResult
+from .ports import ScenePort
 
 
 class SceneEditingService:
@@ -46,7 +48,12 @@ class SceneEditingService:
         try:
             self._validator.validate(plan, before)
         except DomainError as error:
-            return ExecutionResult(status="REJECTED", plan_id=plan.plan_id, verification=None, errors=(error,))
+            return ExecutionResult(
+                status="REJECTED",
+                plan_id=plan.plan_id,
+                verification=None,
+                errors=(error,),
+            )
 
         affected = affected_object_ids(plan)
         checkpoint_ids = tuple(sorted(obj.object_id for obj in before.objects))
@@ -79,6 +86,14 @@ class SceneEditingService:
                         )
                     )
                     self._scene.apply_location(action.object_id, location)  # type: ignore[arg-type]
+                elif isinstance(action, RotateAction):
+                    self._scene.apply_rotation(
+                        action.object_id,
+                        action.axis,
+                        action.angle_radians,
+                    )
+                elif isinstance(action, ScaleUniformAction):
+                    self._scene.apply_uniform_scale(action.object_id, action.factor)
                 elif isinstance(action, LockAction):
                     self._scene.set_locked(action.object_id, True)
                 elif isinstance(action, UnlockAction):

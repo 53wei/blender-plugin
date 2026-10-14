@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
-from typing import Any, Mapping, TypeAlias
+from typing import Any, TypeAlias
 
 from .errors import DomainError, ErrorCode
 
@@ -68,6 +69,24 @@ class MoveAction:
 
 
 @dataclass(frozen=True)
+class RotateAction:
+    action_id: str
+    object_id: str
+    axis: str
+    angle_radians: float
+    space: str = "local"
+    type: str = field(default="rotate", init=False)
+
+
+@dataclass(frozen=True)
+class ScaleUniformAction:
+    action_id: str
+    object_id: str
+    factor: float
+    type: str = field(default="scale_uniform", init=False)
+
+
+@dataclass(frozen=True)
 class LockAction:
     action_id: str
     object_id: str
@@ -81,7 +100,15 @@ class UnlockAction:
     type: str = field(default="unlock", init=False)
 
 
-Action: TypeAlias = PlaceOnAction | RelativePlaceAction | MoveAction | LockAction | UnlockAction
+Action: TypeAlias = (
+    PlaceOnAction
+    | RelativePlaceAction
+    | MoveAction
+    | RotateAction
+    | ScaleUniformAction
+    | LockAction
+    | UnlockAction
+)
 
 
 def action_to_dict(action: Action) -> dict[str, Any]:
@@ -160,6 +187,42 @@ def _parse_action(payload: Mapping[str, Any]) -> Action:
             object_id=str(payload["object_id"]),
             delta=parsed_delta,  # type: ignore[arg-type]
         )
+    if action_type == "rotate":
+        _expect_fields(
+            payload,
+            required={
+                "action_id",
+                "type",
+                "object_id",
+                "axis",
+                "angle_radians",
+                "space",
+            },
+        )
+        axis = str(payload["axis"]).lower()
+        if axis not in {"x", "y", "z"}:
+            raise DomainError(ErrorCode.PLAN_SCHEMA_INVALID, "rotate.axis must be x, y, or z")
+        if payload["space"] != "local":
+            raise DomainError(
+                ErrorCode.PLAN_SCHEMA_INVALID,
+                "Guided rotation only supports local space",
+            )
+        return RotateAction(
+            action_id=str(payload["action_id"]),
+            object_id=str(payload["object_id"]),
+            axis=axis,
+            angle_radians=_finite_number(payload["angle_radians"], "angle_radians"),
+        )
+    if action_type == "scale_uniform":
+        _expect_fields(
+            payload,
+            required={"action_id", "type", "object_id", "factor"},
+        )
+        return ScaleUniformAction(
+            action_id=str(payload["action_id"]),
+            object_id=str(payload["object_id"]),
+            factor=_finite_number(payload["factor"], "factor"),
+        )
     if action_type in {"lock", "unlock"}:
         _expect_fields(payload, required={"action_id", "type", "object_id"})
         action_class = LockAction if action_type == "lock" else UnlockAction
@@ -201,7 +264,7 @@ class ActionPlan:
     user_summary: str
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "ActionPlan":
+    def from_dict(cls, payload: Mapping[str, Any]) -> ActionPlan:
         """Parse a strict, fail-closed plan."""
         _expect_fields(
             payload,

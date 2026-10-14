@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from .diff import changed_transform_ids, max_matrix_delta
+import math
+
 from ..domain.actions import (
     ActionPlan,
     LockAction,
@@ -10,11 +11,14 @@ from ..domain.actions import (
     PlaceOnAction,
     PreserveTransformConstraint,
     RelativePlaceAction,
+    RotateAction,
+    ScaleUniformAction,
     UnlockAction,
 )
 from ..domain.results import CheckResult, VerificationResult
 from ..domain.scene import SceneSnapshot
 from ..infra.config import LOCK_TRANSFORM_EPS, POSITION_EPS, SURFACE_GAP_EPS
+from .diff import changed_transform_ids, max_matrix_delta
 
 
 def _place_on_checks(action: PlaceOnAction, after: SceneSnapshot) -> list[CheckResult]:
@@ -130,6 +134,46 @@ class Verifier:
                         actual=actual,
                         tolerance=POSITION_EPS,
                         passed=delta <= POSITION_EPS,
+                    )
+                )
+            elif isinstance(action, RotateAction):
+                axis_index = {"x": 0, "y": 1, "z": 2}[action.axis]
+                expected = (
+                    before_map[action.object_id].rotation_euler[axis_index]
+                    + action.angle_radians
+                )
+                actual = after_map[action.object_id].rotation_euler[axis_index]
+                angular_delta = abs(
+                    math.atan2(math.sin(actual - expected), math.cos(actual - expected))
+                )
+                checks.append(
+                    CheckResult(
+                        check_type=f"rotate_{action.axis}",
+                        object_ids=(action.object_id,),
+                        expected=expected,
+                        actual=actual,
+                        tolerance=POSITION_EPS,
+                        passed=angular_delta <= POSITION_EPS,
+                    )
+                )
+            elif isinstance(action, ScaleUniformAction):
+                expected = tuple(
+                    value * action.factor
+                    for value in before_map[action.object_id].scale
+                )
+                actual = after_map[action.object_id].scale
+                scale_delta = max(
+                    abs(left - right)
+                    for left, right in zip(expected, actual, strict=True)
+                )
+                checks.append(
+                    CheckResult(
+                        check_type="scale_uniform",
+                        object_ids=(action.object_id,),
+                        expected=expected,
+                        actual=actual,
+                        tolerance=POSITION_EPS,
+                        passed=scale_delta <= POSITION_EPS,
                     )
                 )
             elif isinstance(action, (LockAction, UnlockAction)):

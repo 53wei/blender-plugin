@@ -2,6 +2,8 @@
 
 场景领航员 0.6.2 是一款面向 Blender 4.5 LTS 的中文 AI 场景编排插件。安装后，3D 视图右下角会出现一个可点击的二维助手形象；点击它即可输入中文要求。插件会先生成计划，只有用户确认后才通过事务执行，并在完成后验证结果。
 
+`feature/guided-scene-workflow` 开发分支正在补齐非专业用户的完整起步流程。界面增加“模型、摆放、取景”三个入口：批量导入已有模型，预览后执行落地、网格排列、对齐、旋转和等比缩放，再生成可检查的相机取景计划并导出 PNG。新变换仍经过现有事务、验证和回滚层；AI 白名单没有因此扩大。当前 100 项纯 Python 测试通过，真实 Blender 窗口验收仍需完成，因此这部分尚未作为 0.7.0 Release 发布。
+
 0.6.2 增加 LM Studio 结构化输出适配，已用本机 `qwen/qwen3-4b-2507` 在 Blender 4.5.12 跑通真实规划和确认执行。提示词澄清后，一轮固定任务通过 20/20，其中真正调用模型的正向任务为 8/8；先前一轮为 18/20，两个矛盾约束被回滚。保留两轮结果，不能据此宣称任意指令都可靠。详见 [本版中文测试报告](docs/RELEASE_0.6.2_TEST_REPORT.md)。
 
 0.6.1 新增本地生成的实际动作清单、AI 解锁保护，以及 20 个固定任务的独立评测。模型摘要只供参考，不能替代确认清单。符合动作协议并不等于符合用户意图，请逐项检查对象、方向、距离和保护约束。
@@ -88,9 +90,17 @@
 - Key 不写入 `.blend`、命令行或日志；模型失败、取消和超时都不会修改场景。
 - 纯 Python 测试、Blender 4.5 后台集成测试、隔离安装测试和 20 次重复验证。
 
+引导式场景分支另外完成：
+
+- `.blend/.fbx/.obj/.glb/.gltf/.stl/.ply` 多文件导入与批次失败清理。
+- 所选模型落地、网格排列、活动物体基准对齐、单轴旋转和等比缩放。
+- 每次变换继续先显示真实动作，再确认执行；锁定、过期计划、回滚和未授权变化检查仍生效。
+- 对所选模型或全部可见模型生成 AABB 安全取景计划，确认后创建或移动相机。
+- 按指定尺寸和透明背景选项导出 PNG，并恢复原渲染设置。
+
 ## 当前不能做什么
 
-0.6.2 只允许 AI 使用已经验证过的 `place_on`、`move` 和 `lock` 动作。AI 不能自行解锁；需要先用本地明确指令 `解除锁定 Desk` 并确认。它不会自动建模，不会创建、删除或编辑网格，不会修改材质、灯光或相机，也还不能完成真正的多物体构图、环形排列、对齐和分布。
+0.6.2 只允许 AI 使用已经验证过的 `place_on`、`move` 和 `lock` 动作。AI 不能自行解锁；需要先用本地明确指令 `解除锁定 Desk` 并确认。引导分支增加的是本地明确控制，不代表 AI 已能使用旋转、缩放、相机或导入能力。它仍不会自动建模，不会创建、删除或编辑网格，也不会修改材质或灯光。相机只做确定性安全取景，不判断“高级感”等审美要求。
 
 自然语言理解范围变大了，但执行能力仍受白名单限制。“做成高级感”之类要求如果无法映射到现有动作，会得到明确错误，而不是让模型自由控制 Blender。表面摆放仍只支持能用水平世界坐标边界框可靠表达的支撑面。
 
@@ -105,6 +115,7 @@ blender --command extension validate
 blender --command extension build --output-dir dist
 blender --background --factory-startup --python-exit-code 1 --python tests/integration/run_m1_suite.py
 blender --background --factory-startup --online-mode --python-exit-code 1 --python tests/integration/run_provider_ui_suite.py
+blender --background --factory-startup --python-exit-code 1 --python tests/integration/run_guided_workflow_suite.py
 .\scripts\run_m2_blender_tests.ps1 -Blender "blender" -Repeat 20
 ```
 

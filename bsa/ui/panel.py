@@ -52,6 +52,68 @@ class BSA_PT_scene_assistant(bpy.types.Panel):
         _draw_wrapped(status_column, status.detail, width=22)
         header.prop(settings, "show_avatar", toggle=True)
 
+        steps = layout.row(align=True)
+        steps.prop(settings, "workflow_section", expand=True)
+
+        selected_meshes = tuple(
+            obj for obj in context.selected_objects if obj.type == "MESH"
+        )
+        if settings.workflow_section == "MODEL":
+            model_box = layout.box()
+            model_box.label(text="第 1 步 · 导入已有模型", icon="FILE_FOLDER")
+            model_box.operator("bsa.import_models", text="选择一个或多个模型文件")
+            model_box.label(text="支持：BLEND、FBX、OBJ、GLB/GLTF、STL、PLY")
+            model_box.label(text="导入成功后会自动选中新模型", icon="INFO")
+        elif settings.workflow_section == "PLACE":
+            placement_box = layout.box()
+            placement_box.label(text="第 2 步 · 调整所选模型", icon="OBJECT_DATA")
+            placement_box.label(text=f"当前选中 {len(selected_meshes)} 个网格物体")
+            placement_box.operator("bsa.preview_ground", text="落到地面")
+
+            grid_row = placement_box.row(align=True)
+            grid_row.prop(settings, "grid_columns")
+            grid_row.prop(settings, "layout_gap")
+            placement_box.operator("bsa.preview_grid", text="网格排列")
+
+            align_row = placement_box.row(align=True)
+            align_row.prop(settings, "layout_axis", expand=True)
+            placement_box.prop(settings, "align_anchor")
+            placement_box.operator("bsa.preview_align", text="按活动物体对齐")
+
+            rotate_row = placement_box.row(align=True)
+            rotate_row.prop(settings, "rotation_axis", expand=True)
+            rotate_row.prop(settings, "rotation_degrees")
+            rotate_row.operator("bsa.preview_rotate", text="旋转")
+            scale_row = placement_box.row(align=True)
+            scale_row.prop(settings, "scale_factor")
+            scale_row.operator("bsa.preview_scale", text="等比缩放")
+            placement_box.label(
+                text="以上操作都会先生成动作清单，再由你确认",
+                icon="LOCKED",
+            )
+        elif settings.workflow_section == "CAMERA":
+            camera_box = layout.box()
+            camera_box.label(text="第 3 步 · 自动取景与导出", icon="CAMERA_DATA")
+            camera_box.prop(settings, "camera_scope", expand=True)
+            camera_box.prop(settings, "camera_lens_mm")
+            camera_box.prop(settings, "camera_margin")
+            size_row = camera_box.row(align=True)
+            size_row.prop(settings, "render_width")
+            size_row.prop(settings, "render_height")
+            camera_box.prop(settings, "render_transparent")
+            camera_box.operator("bsa.preview_camera", text="生成取景预览")
+            if settings.camera_plan_json:
+                preview = camera_box.box()
+                preview.label(text="应用前确认", icon="PREVIEW_RANGE")
+                _draw_wrapped(preview, settings.camera_preview_text, width=48)
+                actions = preview.row(align=True)
+                actions.operator(
+                    "bsa.confirm_camera",
+                    text="确认并应用相机",
+                    icon="CHECKMARK",
+                )
+            camera_box.operator("bsa.export_png", text="导出 PNG", icon="IMAGE_DATA")
+
         if settings.assistant_status not in {
             AssistantStatus.AI_REVIEW.value,
             AssistantStatus.PLANNING.value,
@@ -95,7 +157,10 @@ class BSA_PT_scene_assistant(bpy.types.Panel):
                 provider_box.label(text="本机地址示例：http://127.0.0.1:1234/v1")
             provider_box.prop(provider, "api_key")
             provider_box.prop(provider, "timeout_seconds")
-            provider_box.label(text="Key 仅保留在本次会话，不写入 .blend", icon="LOCKED")
+            provider_box.label(
+                text="Key 仅保留在本次会话，不写入 .blend",
+                icon="LOCKED",
+            )
             provider_box.label(text="也可使用 BSA_API_KEY / OPENAI_API_KEY")
             if provider.connection_status == "TESTING":
                 provider_box.operator(
@@ -120,7 +185,10 @@ class BSA_PT_scene_assistant(bpy.types.Panel):
                         provider_box,
                         f"部分可用模型：{provider.available_models_text}",
                     )
-            provider_box.label(text="数据确认后才调用 AI；执行前请检查实际动作", icon="INFO")
+            provider_box.label(
+                text="数据确认后才调用 AI；执行前请检查实际动作",
+                icon="INFO",
+            )
 
         input_box = layout.box()
         input_box.label(text="告诉我你想怎样调整场景", icon="OUTLINER_DATA_FONT")
@@ -132,7 +200,10 @@ class BSA_PT_scene_assistant(bpy.types.Panel):
             settings.assistant_status != AssistantStatus.PLANNING.value
         )
         send_row.operator("bsa.preview_instruction", text="解析要求", icon="PLAY")
-        input_box.label(text="明确指令本地处理；AI 请求会先展示发送数据", icon="LOCKED")
+        input_box.label(
+            text="明确指令本地处理；AI 请求会先展示发送数据",
+            icon="LOCKED",
+        )
         input_box.label(text="示例：把 Lamp 放到 Desk 右侧")
         input_box.label(text="也可：Lamp 向左移动 20 厘米；锁定 Desk")
 
@@ -198,27 +269,36 @@ class BSA_PT_scene_assistant(bpy.types.Panel):
             action_row.operator("bsa.confirm_plan", icon="CHECKMARK")
             action_row.operator("bsa.clear", text="放弃计划", icon="X")
 
-        manual_box = layout.box()
-        manual_box.prop(
-            settings,
-            "show_manual_controls",
-            text="精确控制",
-            icon="DISCLOSURE_TRI_DOWN" if settings.show_manual_controls else "DISCLOSURE_TRI_RIGHT",
-            emboss=False,
-        )
-        if settings.show_manual_controls:
-            manual_box.prop(settings, "source_object", text="移动物体")
-            manual_box.prop(settings, "target_object", text="放到目标")
-            manual_box.prop(settings, "region", text="摆放位置")
-            manual_box.prop(settings, "clearance", text="表面间隙")
-            manual_box.prop(settings, "lock_target")
-            preview_row = manual_box.row()
-            preview_row.enabled = selection_ready
-            preview_row.operator("bsa.preview_plan", text="按精确设置生成计划", icon="PREVIEW_RANGE")
-            if source is not None and source == target:
-                warning = manual_box.row()
-                warning.alert = True
-                warning.label(text="两个选项不能是同一物体", icon="ERROR")
+        if settings.workflow_section == "PLACE":
+            manual_box = layout.box()
+            manual_box.prop(
+                settings,
+                "show_manual_controls",
+                text="放到另一个物体表面",
+                icon=(
+                    "DISCLOSURE_TRI_DOWN"
+                    if settings.show_manual_controls
+                    else "DISCLOSURE_TRI_RIGHT"
+                ),
+                emboss=False,
+            )
+            if settings.show_manual_controls:
+                manual_box.prop(settings, "source_object", text="移动物体")
+                manual_box.prop(settings, "target_object", text="放到目标")
+                manual_box.prop(settings, "region", text="摆放位置")
+                manual_box.prop(settings, "clearance", text="表面间隙")
+                manual_box.prop(settings, "lock_target")
+                preview_row = manual_box.row()
+                preview_row.enabled = selection_ready
+                preview_row.operator(
+                    "bsa.preview_plan",
+                    text="按精确设置生成计划",
+                    icon="PREVIEW_RANGE",
+                )
+                if source is not None and source == target:
+                    warning = manual_box.row()
+                    warning.alert = True
+                    warning.label(text="两个选项不能是同一物体", icon="ERROR")
 
         if settings.result_text != "尚未执行操作" and settings.assistant_status not in {
             AssistantStatus.AI_REVIEW.value,

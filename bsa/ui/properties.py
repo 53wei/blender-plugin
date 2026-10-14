@@ -24,6 +24,14 @@ def _invalidate_preview(settings: object, context: object) -> None:
         settings.result_json = ""
 
 
+def _invalidate_camera_preview(settings: object, _context: object) -> None:
+    """Camera settings changes invalidate only the separate camera plan."""
+
+    if getattr(settings, "camera_plan_json", ""):
+        settings.camera_plan_json = ""
+        settings.camera_preview_text = "取景设置已改变，请重新生成预览"
+
+
 class BSASettings(bpy.types.PropertyGroup):
     """Scene-local M1 user input and preview state."""
 
@@ -40,6 +48,16 @@ class BSASettings(bpy.types.PropertyGroup):
             ("ERROR", "需要处理", "操作未完成"),
         ),
         default="IDLE",
+    )
+    workflow_section: bpy.props.EnumProperty(
+        name="当前步骤",
+        description="按导入模型、摆放调整、相机取景的顺序完成场景",
+        items=(
+            ("MODEL", "模型", "导入已有模型文件"),
+            ("PLACE", "摆放", "落地、排列、对齐、旋转和缩放"),
+            ("CAMERA", "取景", "自动构图并导出 PNG"),
+        ),
+        default="MODEL",
     )
     show_avatar: bpy.props.BoolProperty(
         name="在视图中显示助手",
@@ -62,7 +80,9 @@ class BSASettings(bpy.types.PropertyGroup):
 
     instruction: bpy.props.StringProperty(
         name="中文指令",
-        description="输入场景调整要求；明确指令本地处理，其他指令先显示 AI 发送数据",
+        description=(
+            "输入场景调整要求；明确指令本地处理，其他指令先显示 AI 发送数据"
+        ),
         default="",
         maxlen=500,
         update=_invalidate_preview,
@@ -107,6 +127,118 @@ class BSASettings(bpy.types.PropertyGroup):
         default=True,
         update=_invalidate_preview,
     )
+    layout_axis: bpy.props.EnumProperty(
+        name="操作轴",
+        items=(
+            ("x", "X", "沿 X 轴"),
+            ("y", "Y", "沿 Y 轴"),
+            ("z", "Z", "沿 Z 轴"),
+        ),
+        default="x",
+        update=_invalidate_preview,
+    )
+    align_anchor: bpy.props.EnumProperty(
+        name="对齐位置",
+        items=(
+            ("min", "最小边", "将边界框最小边与活动物体对齐"),
+            ("center", "中心", "将边界框中心与活动物体对齐"),
+            ("max", "最大边", "将边界框最大边与活动物体对齐"),
+        ),
+        default="center",
+        update=_invalidate_preview,
+    )
+    grid_columns: bpy.props.IntProperty(
+        name="网格列数",
+        description="所选模型排列成几列",
+        default=3,
+        min=1,
+        max=10,
+        update=_invalidate_preview,
+    )
+    layout_gap: bpy.props.FloatProperty(
+        name="模型间隙",
+        description="网格单元之间额外保留的距离",
+        default=0.2,
+        min=0.0,
+        max=1000.0,
+        unit="LENGTH",
+        update=_invalidate_preview,
+    )
+    rotation_degrees: bpy.props.FloatProperty(
+        name="旋转角度",
+        description="所选模型绕本地操作轴旋转的角度",
+        default=90.0,
+        min=-360.0,
+        max=360.0,
+        update=_invalidate_preview,
+    )
+    rotation_axis: bpy.props.EnumProperty(
+        name="旋转轴",
+        items=(
+            ("x", "X", "绕本地 X 轴旋转"),
+            ("y", "Y", "绕本地 Y 轴旋转"),
+            ("z", "Z", "绕本地 Z 轴旋转"),
+        ),
+        default="z",
+        update=_invalidate_preview,
+    )
+    scale_factor: bpy.props.FloatProperty(
+        name="缩放倍数",
+        description="对所选模型进行等比缩放",
+        default=1.2,
+        min=0.01,
+        max=100.0,
+        update=_invalidate_preview,
+    )
+    camera_scope: bpy.props.EnumProperty(
+        name="取景范围",
+        items=(
+            ("SELECTED", "所选模型", "只把当前所选物体放进画面"),
+            ("VISIBLE", "所有可见模型", "把场景中全部可见网格物体放进画面"),
+        ),
+        default="SELECTED",
+        update=_invalidate_camera_preview,
+    )
+    camera_lens_mm: bpy.props.FloatProperty(
+        name="镜头焦距",
+        description="透视相机的焦距（毫米）",
+        default=50.0,
+        min=10.0,
+        max=200.0,
+        update=_invalidate_camera_preview,
+    )
+    camera_margin: bpy.props.FloatProperty(
+        name="画面留白",
+        description="主体四周预留的安全空间",
+        default=0.12,
+        min=0.0,
+        max=0.5,
+        subtype="FACTOR",
+        update=_invalidate_camera_preview,
+    )
+    render_width: bpy.props.IntProperty(
+        name="宽度",
+        default=1280,
+        min=64,
+        max=8192,
+        update=_invalidate_camera_preview,
+    )
+    render_height: bpy.props.IntProperty(
+        name="高度",
+        default=720,
+        min=64,
+        max=8192,
+        update=_invalidate_camera_preview,
+    )
+    render_transparent: bpy.props.BoolProperty(
+        name="透明背景",
+        default=False,
+    )
+    camera_plan_json: bpy.props.StringProperty(name="Camera Plan JSON", default="")
+    camera_preview_text: bpy.props.StringProperty(
+        name="取景预览",
+        default="尚未生成取景计划",
+    )
     plan_json: bpy.props.StringProperty(name="Plan JSON", default="")
     preview_text: bpy.props.StringProperty(name="预览", default="尚未生成计划")
     result_text: bpy.props.StringProperty(name="结果", default="尚未执行操作")
@@ -126,7 +258,13 @@ class BSAProviderSession(bpy.types.PropertyGroup):
     provider_type: bpy.props.EnumProperty(
         name="服务类型",
         description="当前支持 OpenAI-compatible 的模型服务接口",
-        items=(("OPENAI_COMPATIBLE", "OpenAI-compatible", "使用兼容的 /models 和 /chat/completions 接口"),),
+        items=(
+            (
+                "OPENAI_COMPATIBLE",
+                "OpenAI-compatible",
+                "使用兼容的 /models 和 /chat/completions 接口",
+            ),
+        ),
         default="OPENAI_COMPATIBLE",
         options={"SKIP_SAVE"},
     )
@@ -142,7 +280,11 @@ class BSAProviderSession(bpy.types.PropertyGroup):
         description="LM Studio 选择结构化 Schema；其他服务按其兼容能力选择",
         items=(
             ("json_object", "通用 JSON", "保持既有兼容服务的 JSON 对象模式"),
-            ("json_schema", "LM Studio 结构化输出", "发送严格候选 Schema，仍需本地校验和用户确认"),
+            (
+                "json_schema",
+                "LM Studio 结构化输出",
+                "发送严格候选 Schema，仍需本地校验和用户确认",
+            ),
         ),
         default="json_object",
         options={"SKIP_SAVE"},

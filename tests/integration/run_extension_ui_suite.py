@@ -49,21 +49,30 @@ def main() -> int:
         if hasattr(bpy.types.Scene, "bsa_provider_session"):
             raise AssertionError("Provider credentials must not belong to Scene")
 
-        from blender_scene_assistant_integration.bsa.ui.operators import (
-            BSA_OT_confirm_plan,
-            BSA_OT_launch_assistant,
-            BSA_OT_open_assistant,
-            BSA_OT_preview_instruction,
-            BSA_OT_preview_plan,
-            BSA_OT_cancel_provider_connection,
-            BSA_OT_cancel_ai_planning,
-            BSA_OT_discard_ai_request,
-            BSA_OT_start_ai_planning,
-            BSA_OT_test_provider_connection,
-        )
         from blender_scene_assistant_integration.bsa.ui.avatar import (
             BSA_GGT_assistant_launcher,
             assistant_asset_loaded,
+        )
+        from blender_scene_assistant_integration.bsa.ui.operators import (
+            BSA_OT_cancel_ai_planning,
+            BSA_OT_cancel_provider_connection,
+            BSA_OT_confirm_camera,
+            BSA_OT_confirm_plan,
+            BSA_OT_discard_ai_request,
+            BSA_OT_export_png,
+            BSA_OT_import_models,
+            BSA_OT_launch_assistant,
+            BSA_OT_open_assistant,
+            BSA_OT_preview_align,
+            BSA_OT_preview_camera,
+            BSA_OT_preview_grid,
+            BSA_OT_preview_ground,
+            BSA_OT_preview_instruction,
+            BSA_OT_preview_plan,
+            BSA_OT_preview_rotate,
+            BSA_OT_preview_scale,
+            BSA_OT_start_ai_planning,
+            BSA_OT_test_provider_connection,
         )
         from blender_scene_assistant_integration.bsa.ui.panel import (
             BSA_PT_scene_assistant,
@@ -97,6 +106,19 @@ def main() -> int:
             raise AssertionError("Confirm button is not Chinese")
         if BSA_OT_preview_instruction.bl_label != "解析并生成预览":
             raise AssertionError("Instruction preview button is not Chinese")
+        guided_operators = {
+            BSA_OT_import_models.bl_idname,
+            BSA_OT_preview_ground.bl_idname,
+            BSA_OT_preview_align.bl_idname,
+            BSA_OT_preview_grid.bl_idname,
+            BSA_OT_preview_rotate.bl_idname,
+            BSA_OT_preview_scale.bl_idname,
+            BSA_OT_preview_camera.bl_idname,
+            BSA_OT_confirm_camera.bl_idname,
+            BSA_OT_export_png.bl_idname,
+        }
+        if len(guided_operators) != 9:
+            raise AssertionError("Guided workflow operators were not registered uniquely")
 
         bpy.ops.object.select_all(action="SELECT")
         bpy.ops.object.delete(use_global=False)
