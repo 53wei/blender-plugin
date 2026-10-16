@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -40,7 +41,11 @@ def main() -> int:
         settings = bpy.context.scene.bsa_settings
         session = bpy.context.window_manager.bsa_provider_session
         session.api_base = "http://127.0.0.1:1234/v1"
-        session.model = "qwen/qwen3-4b-2507"
+        session.model = os.environ.get(
+            "BSA_TEST_MODEL", "qwen/qwen3-4b-2507"
+        ).strip()
+        if not session.model:
+            raise RuntimeError("BSA_TEST_MODEL 不能为空")
         session.output_format = "json_schema"
         session.api_key = ""
         session.timeout_seconds = 60
@@ -78,7 +83,11 @@ def main() -> int:
             "output_tokens": session.last_output_tokens if session.last_usage_available else None,
             "duration_ms": round((time.perf_counter() - started) * 1000, 2),
         }
-        name = "qwen_local_installed_ui_2026_10_07.json" if "--installed" in sys.argv else "qwen_local_source_ui_2026_10_07.json"
+        model_tag = "".join(
+            char if char.isalnum() else "_" for char in session.model
+        ).strip("_")[:80]
+        package_tag = "installed" if "--installed" in sys.argv else "source"
+        name = f"{model_tag}_{package_tag}_ui_0_6_3.json"
         output = REPOSITORY_ROOT / "benchmarks" / "results" / name
         output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print("BSA_LOCAL_MODEL_UI_RESULT=" + json.dumps(report, ensure_ascii=True))

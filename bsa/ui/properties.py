@@ -117,6 +117,30 @@ class BSASettings(bpy.types.PropertyGroup):
 class BSAProviderSession(bpy.types.PropertyGroup):
     """只存在于当前 Blender 会话的 Provider 配置与连接结果。"""
 
+    show_model_names: bpy.props.BoolProperty(
+        name="可用模型名称",
+        description="展开连接测试返回的模型名称；不触发联网",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
+    show_settings: bpy.props.BoolProperty(
+        name="设置",
+        description="打开或收起 AI 服务、精确控制和助手显示设置",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
+    show_data_details: bpy.props.BoolProperty(
+        name="完整发送详情",
+        description="查看本轮实际将发送的所有对象字段；不触发联网",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
+    show_usage_details: bpy.props.BoolProperty(
+        name="调用用量",
+        description="展开最近一次 AI 规划的请求、Token 和耗时",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
     show_provider_settings: bpy.props.BoolProperty(
         name="AI 服务设置",
         description="展开用户自带 API 的连接设置",

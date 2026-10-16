@@ -10,6 +10,7 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 
 from ..application.assistant_state import AssistantStatus, presentation_for
+from ..application.ui_presentation import AVATAR_HIT_RADIUS, AVATAR_SIZE_PX
 
 
 _PREVIEWS = None
@@ -38,7 +39,7 @@ def _draw_avatar() -> None:
             return
     if _SHADER is None:
         _SHADER = gpu.shader.from_builtin("IMAGE")
-    size = 92.0
+    size = AVATAR_SIZE_PX
     center_x = max(56.0, region.width - 74.0)
     center_y = 74.0
     half = size / 2.0
@@ -65,7 +66,7 @@ def _draw_avatar() -> None:
 
 
 def register_assets() -> None:
-    """加载随插件分发的原创助手图像。"""
+    """加载本地指定的助手图像；来源与分发限制见资产说明。"""
 
     global _DRAW_HANDLE, _IMAGE, _PREVIEWS
     if _PREVIEWS is not None:
@@ -142,16 +143,16 @@ class BSA_GGT_assistant_launcher(bpy.types.GizmoGroup):
     def setup(self, _context: object) -> None:
         gizmo = self.gizmos.new("GIZMO_GT_button_2d")
         gizmo.target_set_operator("bsa.launch_assistant")
-        gizmo.draw_options = {"BACKDROP", "OUTLINE"}
+        gizmo.draw_options = {"BACKDROP"}
         gizmo.icon_value = assistant_icon_id()
         gizmo.color = (0.15, 0.72, 0.86)
         gizmo.color_highlight = (1.0, 0.60, 0.15)
         # 保留极低透明度，Blender 才会为按钮生成可点击的选择区域。
         gizmo.alpha = 0.02
-        gizmo.alpha_highlight = 0.35
+        gizmo.alpha_highlight = 0.12
         gizmo.backdrop_fill_alpha = 0.01
         gizmo.line_width = 1.5
-        gizmo.scale_basis = 42.0
+        gizmo.scale_basis = AVATAR_HIT_RADIUS
         gizmo.use_tooltip = True
         self.launcher = gizmo
 

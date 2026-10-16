@@ -6,6 +6,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.impeccable/review/
+.impeccable/mocks/
 .qa_spec/
 .blender_test_user/
 .blender_test_user_*/

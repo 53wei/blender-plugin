@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-16T07:26:45-04:00",
+  "title": "Design System: 场景领航员",
+  "extensions": {
+    "nativePlatform": {
+      "host": "Blender 4.5+",
+      "surface": "3D View sidebar and invoke popup",
+      "theme": "继承 Blender 当前主题",
+      "typography": "继承 Blender 内置字体和系统 UI 缩放",
+      "controls": "Blender bpy UILayout 原生控件",
+      "webReplicaSupported": false
+    },
+    "measurements": [
+      {
+        "name": "assistant-avatar",
+        "value": "92px × 92px",
+        "purpose": "3D 视图右下角助手的固定绘制尺寸"
+      },
+      {
+        "name": "assistant-hit-radius",
+        "value": "42px",
+        "purpose": "头像入口的固定命中半径"
+      },
+      {
+        "name": "assistant-popup-width",
+        "value": "420px logical",
+        "purpose": "随 Blender UI 缩放变化的助手弹窗逻辑宽度"
+      },
+      {
+        "name": "instruction-height-scale",
+        "value": "1.35",
+        "purpose": "指令输入行的原生高度倍率"
+      },
+      {
+        "name": "primary-action-height-scale",
+        "value": "1.45",
+        "purpose": "每阶段主要动作的原生高度倍率"
+      }
+    ],
+    "interactionStages": [
+      "输入要求",
+      "AI 发送确认",
+      "正在生成计划",
+      "检查计划",
+      "正在执行",
+      "已完成",
+      "需要处理"
+    ],
+    "distributionConstraint": "用户于 2026-10-16 确认拥有使用权并要求公开提交；项目保留来源记录，未单列图片许可证文本。"
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "安静的原生领航员",
+    "overview": "场景领航员像嵌在 Blender 里的安静导航层：它不占据创作画面，只在用户需要时说明当前阶段和下一步。视觉表达服从 Blender 原生工作环境，产品个性集中在右下角的小助手头像，而不是另造一套聊天软件外壳。\n\n界面追求克制、清楚和可验证。默认表面只提供当前阶段、指令输入和一个主要动作；AI 服务、精确控制、模型名称、用量和显示开关进入设置。数据发送确认与场景执行确认必须分开，简洁不能隐藏实际动作、保护约束、失败原因或取消路径。",
+    "keyCharacteristics": [
+      "Blender 原生主题、字体、图标和控件",
+      "一个阶段只突出一个主要动作",
+      "设置按需展开，主屏不承担配置工作",
+      "右下角 92 像素角色是唯一的可爱视觉焦点",
+      "计划先展示，确认后执行，执行后验证"
+    ],
+    "rules": [
+      {
+        "name": "The Host Theme Rule",
+        "body": "除头像资源外，不在插件中硬编码界面颜色；状态和强调使用 Blender 原生控件语义。",
+        "section": "colors"
+      },
+      {
+        "name": "The Plain Language Rule",
+        "body": "文案描述用户即将发生的动作，不使用含糊的“处理一下”“智能优化”或假装已经执行的状态。",
+        "section": "typography"
+      },
+      {
+        "name": "The One Next Step Rule",
+        "body": "每个阶段只有一个视觉上最突出的下一步；返回、取消、放弃等动作保持可见但不与主操作争夺层级。",
+        "section": "layout"
+      },
+      {
+        "name": "The Native Surface Rule",
+        "body": "不用卡片套卡片、发光、渐变或阴影制造层级；优先依靠顺序、间距、展开状态和原生强调按钮。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do 让用户在几秒内看懂当前阶段和下一步。",
+      "Do 保留完整动作、数据发送范围、保护约束、取消路径和验证结果。",
+      "Do 使用 Blender 原生主题、字体、图标、输入框、按钮和折叠项。",
+      "Do 将 AI 配置、精确控制和用量放在设置中按需展开。",
+      "Do 保持头像 92 像素、点击半径 42 像素和右下角锚点不变。"
+    ],
+    "donts": [
+      "Don't 把主界面重新做成聊天记录、控制台和设置表单同时展开的长面板。",
+      "Don't 用大头像、重复说明、装饰卡片或动画占据建模画面。",
+      "Don't 为了简洁隐藏实际执行动作、失败原因或两次用户确认。",
+      "Don't 硬编码网页色板、字体、阴影、圆角或与 Blender 不一致的自绘外壳。",
+      "Don't 删除当前角色图片的来源、处理方式和用户授权确认记录。"
+    ]
+  }
+}

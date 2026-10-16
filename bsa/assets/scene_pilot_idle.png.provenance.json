@@ -1,0 +1,9 @@
+{
+  "日期": "2026-10-12",
+  "用途": "用户指定的本地 Blender 助手头像替换",
+  "来源": "用户提供的第三张图：codex-clipboard-33782cd7-341c-4dbb-878c-81a90668c259.jpg",
+  "工具": "内置图像编辑工具 image_gen",
+  "授权状态": "用户于 2026-10-16 明确确认拥有使用权，并要求随项目提交到公开 GitHub 仓库；未单独提供图片许可证文本",
+  "编辑要求": "保留同一角色的粉色头发、开心张嘴表情、琥珀色眼睛、红色发夹、帽子及服装细节，仅清理户外背景和边缘，输出透明的正方形头像供原有 92 像素位置使用；不要新增身体、机器人、文字、徽章或背景",
+  "原始提示词": "Use case: background-extraction. Asset type: small Blender viewport assistant portrait icon. Edit target: attached pink-haired cute chibi anime portrait. Extract the SAME character from this supplied image, remove only the outdoor/rock/background and make the surrounding background genuinely transparent. Preserve exactly the original recognizable character, open happy mouth, big amber/yellow eyes, dusty pink hair, two red hair clips, hat details and visible shoulder/bow clothing, original illustration rendering and colours. Do not invent a new body, do not redesign the face, do not turn it into a robot. A neat head-and-shoulders cutout, centered in a square transparent canvas, with small transparent safety padding (~10%) around the portrait so it reads cleanly when drawn in the existing fixed 92x92 pixel UI slot. No enclosing badge, no rectangular white background, no checkerboard painted into the image, no text, no logos, no shadow outside the character. Preserve the pose/expression and the source appearance as closely as possible; only background and edge cleanup may change."
+}

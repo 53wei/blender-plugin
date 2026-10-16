@@ -16,6 +16,11 @@ from ..application.assistant_state import (
 )
 from ..application.service import SceneEditingService
 from ..application.plan_preview import describe_plan
+from ..application.ui_presentation import (
+    POPUP_WIDTH_PX,
+    planning_config_issue,
+    provider_error_message,
+)
 from ..blender_adapter.ids import ensure_stable_ids, stable_id
 from ..blender_adapter.scene_port import BlenderScenePort
 from ..core.fingerprint import fingerprint_snapshot
@@ -99,20 +104,6 @@ _AI_TIMER_ACTIVE = False
 _AI_REVIEW_SNAPSHOT: SceneSnapshot | None = None
 _AI_PLANNING_SNAPSHOT: SceneSnapshot | None = None
 
-_PROVIDER_ERROR_MESSAGES = {
-    ProviderErrorCode.INVALID_CONFIG.value: "请检查 API 地址、模型和超时设置",
-    ProviderErrorCode.AUTHENTICATION_FAILED.value: "API Key 无效或没有访问权限",
-    ProviderErrorCode.RATE_LIMITED.value: "请求过于频繁或账户额度受限",
-    ProviderErrorCode.CONNECTION_FAILED.value: "无法连接模型服务，请检查地址和网络",
-    ProviderErrorCode.TIMEOUT.value: "连接模型服务超时",
-    ProviderErrorCode.INVALID_RESPONSE.value: "服务返回的模型列表不兼容",
-    ProviderErrorCode.SERVER_ERROR.value: "模型服务暂时不可用",
-    ProviderErrorCode.ONLINE_ACCESS_DISABLED.value: "Blender 当前禁止扩展联网",
-    ProviderErrorCode.CANCELED.value: "连接测试已取消",
-    ProviderErrorCode.WORKER_FAILED.value: "连接测试进程未能正常完成",
-    ProviderErrorCode.OUTPUT_INVALID.value: "模型没有返回可用的结构化计划",
-}
-
 _CREDENTIAL_SOURCE_LABELS = {
     CredentialSource.SESSION: "本次会话输入",
     CredentialSource.BSA_ENV: "环境变量 BSA_API_KEY",
@@ -152,9 +143,8 @@ def _set_provider_error(session: object, code: str, fallback: str = "") -> None:
     session.connection_status = (
         "CANCELED" if code == ProviderErrorCode.CANCELED.value else "ERROR"
     )
-    session.connection_message = _PROVIDER_ERROR_MESSAGES.get(
-        code,
-        fallback or "连接测试失败",
+    session.connection_message = provider_error_message(
+        code, fallback or "连接测试失败"
     )
     session.available_models_text = ""
     session.latency_ms = 0
@@ -165,7 +155,7 @@ def _apply_provider_outcome(session: object, outcome: WorkerOutcome) -> None:
 
     if not outcome.ok:
         code = str(outcome.error.get("code", ProviderErrorCode.WORKER_FAILED.value))
-        _set_provider_error(session, code)
+        _set_provider_error(session, code, str(outcome.error.get("message", "")))
         return
 
     models = outcome.result.get("models", [])
@@ -278,7 +268,7 @@ def _apply_ai_outcome(
     global _AI_PLANNING_SNAPSHOT
     if not outcome.ok:
         code = str(outcome.error.get("code", ProviderErrorCode.WORKER_FAILED.value))
-        message = _PROVIDER_ERROR_MESSAGES.get(code, "AI 规划失败")
+        message = provider_error_message(code, str(outcome.error.get("message", "")))
         if code == ProviderErrorCode.CANCELED.value:
             message = "AI 规划已取消"
         _set_ai_failure(settings, session, message)
@@ -518,7 +508,11 @@ class BSA_OT_start_ai_planning(bpy.types.Operator):
             _clear_pending_ai(session)
             return {"CANCELLED"}
         except ProviderError as error:
-            message = _PROVIDER_ERROR_MESSAGES.get(error.code.value, error.message)
+            message = provider_error_message(error)
+            if error.code == ProviderErrorCode.INVALID_CONFIG:
+                message = planning_config_issue(
+                    session.api_base, session.model, session.timeout_seconds, session.output_format
+                ) or message
             _set_ai_failure(settings, session, message)
             return {"CANCELLED"}
 
@@ -537,7 +531,7 @@ class BSA_OT_start_ai_planning(bpy.types.Operator):
         try:
             _AI_TASK = ProviderWorkerTask.start_plan(config, credential.value, request)
         except ProviderError as error:
-            message = _PROVIDER_ERROR_MESSAGES.get(error.code.value, error.message)
+            message = provider_error_message(error)
             _set_ai_failure(settings, session, message)
             return {"CANCELLED"}
 
@@ -605,7 +599,7 @@ class BSA_OT_open_assistant(bpy.types.Operator):
     bl_description = "打开场景领航员的中文指令面板"
 
     def invoke(self, context: object, _event: object) -> set[str]:
-        return context.window_manager.invoke_popup(self, width=560)
+        return context.window_manager.invoke_popup(self, width=POPUP_WIDTH_PX)
 
     def draw(self, context: object) -> None:
         # 延迟导入避免注册阶段的模块环；Panel 与弹窗复用完全相同的界面。
@@ -614,6 +608,21 @@ class BSA_OT_open_assistant(bpy.types.Operator):
         BSA_PT_scene_assistant.draw(self, context)
 
     def execute(self, _context: object) -> set[str]:
+        return {"FINISHED"}
+
+
+class BSA_OT_toggle_settings(bpy.types.Operator):
+    """只切换界面，不改变指令、计划或任何场景物体。"""
+
+    bl_idname = "bsa.toggle_settings"
+    bl_label = "设置"
+    bl_description = "打开或收起 AI 服务、精确控制和助手显示设置"
+
+    def execute(self, context: object) -> set[str]:
+        session = context.window_manager.bsa_provider_session
+        session.show_settings = not session.show_settings
+        if session.show_settings:
+            session.show_provider_settings = True
         return {"FINISHED"}
 
 

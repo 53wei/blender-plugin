@@ -21,6 +21,7 @@ from .operators import (
     BSA_OT_preview_plan,
     BSA_OT_start_ai_planning,
     BSA_OT_test_provider_connection,
+    BSA_OT_toggle_settings,
     cancel_provider_task,
 )
 from .panel import BSA_PT_scene_assistant
@@ -31,6 +32,7 @@ _CLASSES = (
     BSAProviderSession,
     BSA_OT_open_assistant,
     BSA_OT_launch_assistant,
+    BSA_OT_toggle_settings,
     BSA_OT_preview_instruction,
     BSA_OT_preview_plan,
     BSA_OT_start_ai_planning,
