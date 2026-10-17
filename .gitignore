@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *.blend1
 *.zip
+dist/
 .coverage
 .pytest_cache/
 .mypy_cache/
