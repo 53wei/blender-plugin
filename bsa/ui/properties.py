@@ -291,3 +291,151 @@ class BSAProviderSession(bpy.types.PropertyGroup):
         min=0,
         options={"SKIP_SAVE"},
     )
+
+
+def _invalidate_adapter_plate_review(settings: object, _context: object) -> None:
+    """任何可执行参数变化都必须废弃旧摘要，避免确认过期设计。"""
+
+    settings.stage = "INPUT"
+    settings.review_fingerprint = ""
+    settings.review_summary = ""
+    settings.review_details = ""
+    settings.review_notice = ""
+    settings.error_message = ""
+    settings.result_summary = ""
+    settings.result_detail = ""
+    settings.last_plan_id = ""
+
+
+class BSAAdapterPlateSettings(bpy.types.PropertyGroup):
+    """保存在工程中的板件参数，以及只存在于会话中的检查/执行状态。"""
+
+    stage: bpy.props.EnumProperty(
+        name="创建阶段",
+        items=(
+            ("INPUT", "填写参数", "填写板件和孔位参数"),
+            ("REVIEW", "检查设计", "检查本地展开后的设计摘要"),
+            ("WORKING", "正在创建", "正在通过事务执行层创建并验证"),
+            ("SUCCESS", "创建完成", "网格已创建并通过回读验证"),
+            ("ERROR", "需要修改", "参数或执行结果需要处理"),
+        ),
+        default="INPUT",
+        options={"SKIP_SAVE"},
+    )
+    show_hole_settings: bpy.props.BoolProperty(
+        name="孔位参数（4 个贯穿孔）",
+        description="展开设备孔组和支架孔组的中心、孔距与孔径",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
+    plate_id: bpy.props.StringProperty(
+        name="零件编号",
+        description="使用字母、数字、点、下划线或连字符；场景中不能重复",
+        default="adapter-001",
+        maxlen=128,
+        update=_invalidate_adapter_plate_review,
+    )
+    width_mm: bpy.props.FloatProperty(
+        name="板宽（mm）",
+        default=80.0,
+        min=0.01,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    depth_mm: bpy.props.FloatProperty(
+        name="板深（mm）",
+        default=40.0,
+        min=0.01,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    thickness_mm: bpy.props.FloatProperty(
+        name="厚度（mm）",
+        default=3.0,
+        min=0.01,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    corner_radius_mm: bpy.props.FloatProperty(
+        name="圆角半径（mm）",
+        default=2.0,
+        min=0.0,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    device_center_x_mm: bpy.props.FloatProperty(
+        name="中心 X（mm）",
+        default=20.0,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    device_center_y_mm: bpy.props.FloatProperty(
+        name="中心 Y（mm）",
+        default=20.0,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    device_spacing_mm: bpy.props.FloatProperty(
+        name="横向孔距（mm）",
+        default=20.0,
+        min=0.01,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    device_hole_diameter_mm: bpy.props.FloatProperty(
+        name="孔径（mm）",
+        default=3.2,
+        min=0.01,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    support_center_x_mm: bpy.props.FloatProperty(
+        name="中心 X（mm）",
+        default=40.0,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    support_center_y_mm: bpy.props.FloatProperty(
+        name="中心 Y（mm）",
+        default=20.0,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    support_spacing_mm: bpy.props.FloatProperty(
+        name="纵向孔距（mm）",
+        default=20.0,
+        min=0.01,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    support_hole_diameter_mm: bpy.props.FloatProperty(
+        name="孔径（mm）",
+        default=4.2,
+        min=0.01,
+        precision=2,
+        update=_invalidate_adapter_plate_review,
+    )
+    review_fingerprint: bpy.props.StringProperty(
+        name="检查指纹", default="", options={"SKIP_SAVE"}
+    )
+    review_summary: bpy.props.StringProperty(
+        name="检查摘要", default="", options={"SKIP_SAVE"}
+    )
+    review_details: bpy.props.StringProperty(
+        name="检查详情", default="", options={"SKIP_SAVE"}
+    )
+    review_notice: bpy.props.StringProperty(
+        name="确认提示", default="", options={"SKIP_SAVE"}
+    )
+    error_message: bpy.props.StringProperty(
+        name="错误说明", default="", options={"SKIP_SAVE"}
+    )
+    result_summary: bpy.props.StringProperty(
+        name="执行结果", default="", options={"SKIP_SAVE"}
+    )
+    result_detail: bpy.props.StringProperty(
+        name="验证详情", default="", options={"SKIP_SAVE"}
+    )
+    last_plan_id: bpy.props.StringProperty(
+        name="最近计划 ID", default="", options={"SKIP_SAVE"}
+    )

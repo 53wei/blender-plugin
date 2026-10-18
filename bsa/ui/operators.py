@@ -627,16 +627,16 @@ class BSA_OT_toggle_settings(bpy.types.Operator):
 
 
 class BSA_OT_launch_assistant(bpy.types.Operator):
-    """Bridge Gizmo execution to the popup operator's invoke path."""
+    """Bridge the avatar to the current 3D-print product workflow."""
 
     bl_idname = "bsa.launch_assistant"
-    bl_label = "启动场景领航员"
-    bl_description = "从视图助手形象打开中文指令面板"
+    bl_label = "启动 3D 打印零件助手"
+    bl_description = "从视图助手形象打开转接板创建流程"
 
     def execute(self, _context: object) -> set[str]:
-        result = bpy.ops.bsa.open_assistant("INVOKE_DEFAULT")
+        result = bpy.ops.bsa.open_print_part("INVOKE_DEFAULT")
         if result != {"RUNNING_MODAL"}:
-            self.report({"ERROR"}, "无法打开场景领航员")
+            self.report({"ERROR"}, "无法打开 3D 打印零件助手")
             return {"CANCELLED"}
         return {"FINISHED"}
 

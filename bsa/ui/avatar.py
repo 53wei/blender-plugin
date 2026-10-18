@@ -125,7 +125,7 @@ class BSA_GGT_assistant_launcher(bpy.types.GizmoGroup):
     """固定在 3D 视图右下角的助手启动按钮。"""
 
     bl_idname = "BSA_GGT_assistant_launcher"
-    bl_label = "场景领航员入口"
+    bl_label = "3D 打印零件助手入口"
     bl_space_type = "VIEW_3D"
     bl_region_type = "WINDOW"
     bl_options = {"PERSISTENT", "SCALE"}
@@ -158,8 +158,18 @@ class BSA_GGT_assistant_launcher(bpy.types.GizmoGroup):
 
     def draw_prepare(self, context: object) -> None:
         region = context.region
-        settings = context.scene.bsa_settings
-        presentation = presentation_for(AssistantStatus(settings.assistant_status))
+        print_settings = getattr(context.scene, "bsa_adapter_plate_settings", None)
         self.launcher.matrix_basis[0][3] = max(56.0, region.width - 74.0)
         self.launcher.matrix_basis[1][3] = 74.0
-        self.launcher.color = presentation.color
+        if print_settings is None:
+            settings = context.scene.bsa_settings
+            presentation = presentation_for(AssistantStatus(settings.assistant_status))
+            self.launcher.color = presentation.color
+            return
+        self.launcher.color = {
+            "INPUT": (0.15, 0.72, 0.86),
+            "REVIEW": (0.20, 0.52, 0.95),
+            "WORKING": (1.00, 0.55, 0.12),
+            "SUCCESS": (0.20, 0.78, 0.42),
+            "ERROR": (0.92, 0.22, 0.22),
+        }.get(print_settings.stage, (0.15, 0.72, 0.86))

@@ -39,6 +39,9 @@ def main() -> int:
         BSA_OT_cancel_provider_connection,
         BSA_OT_test_provider_connection,
     )
+    from bl_ext.user_default.blender_scene_assistant.bsa.ui.adapter_plate_operators import (
+        BSA_OT_open_print_part,
+    )
     from bl_ext.user_default.blender_scene_assistant.bsa.ui.avatar import (
         BSA_GGT_assistant_launcher,
         assistant_asset_loaded,
@@ -53,13 +56,15 @@ def main() -> int:
         raise AssertionError("Installed panel title is not Chinese")
     if BSA_OT_open_assistant.bl_label != "打开场景领航员":
         raise AssertionError("Installed assistant launcher is missing")
-    if BSA_OT_launch_assistant.bl_label != "启动场景领航员":
-        raise AssertionError("Installed assistant gizmo bridge is missing")
+    if BSA_OT_open_print_part.bl_label != "打开 3D 打印零件":
+        raise AssertionError("Installed print-part popup operator is missing")
+    if BSA_OT_launch_assistant.bl_label != "启动 3D 打印零件助手":
+        raise AssertionError("Installed assistant gizmo does not open product workflow")
     if BSA_OT_test_provider_connection.bl_label != "测试连接":
         raise AssertionError("Installed provider connection operator is missing")
     if BSA_OT_cancel_provider_connection.bl_label != "取消连接测试":
         raise AssertionError("Installed provider cancellation operator is missing")
-    if BSA_GGT_assistant_launcher.bl_label != "场景领航员入口":
+    if BSA_GGT_assistant_launcher.bl_label != "3D 打印零件助手入口":
         raise AssertionError("Installed assistant avatar gizmo is missing")
     if not assistant_asset_loaded():
         raise AssertionError("Installed assistant avatar image did not load")

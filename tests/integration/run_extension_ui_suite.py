@@ -61,6 +61,9 @@ def main() -> int:
             BSA_OT_start_ai_planning,
             BSA_OT_test_provider_connection,
         )
+        from blender_scene_assistant_integration.bsa.ui.adapter_plate_operators import (
+            BSA_OT_open_print_part,
+        )
         from blender_scene_assistant_integration.bsa.ui.avatar import (
             BSA_GGT_assistant_launcher,
             assistant_asset_loaded,
@@ -75,8 +78,10 @@ def main() -> int:
             raise AssertionError("Panel title is not Chinese")
         if BSA_OT_open_assistant.bl_label != "打开场景领航员":
             raise AssertionError("Assistant launcher operator is not registered")
-        if BSA_OT_launch_assistant.bl_label != "启动场景领航员":
-            raise AssertionError("Assistant gizmo bridge is not registered")
+        if BSA_OT_open_print_part.bl_label != "打开 3D 打印零件":
+            raise AssertionError("Print-part popup operator is not registered")
+        if BSA_OT_launch_assistant.bl_label != "启动 3D 打印零件助手":
+            raise AssertionError("Assistant gizmo does not open the product workflow")
         if BSA_OT_test_provider_connection.bl_label != "测试连接":
             raise AssertionError("Provider connection operator is not registered")
         if BSA_OT_cancel_provider_connection.bl_label != "取消连接测试":
@@ -87,7 +92,7 @@ def main() -> int:
             raise AssertionError("AI cancellation operator is not registered")
         if BSA_OT_discard_ai_request.bl_label != "不发送":
             raise AssertionError("AI data review discard operator is not registered")
-        if BSA_GGT_assistant_launcher.bl_label != "场景领航员入口":
+        if BSA_GGT_assistant_launcher.bl_label != "3D 打印零件助手入口":
             raise AssertionError("Assistant avatar gizmo is not registered")
         if not assistant_asset_loaded():
             raise AssertionError("Assistant avatar image was not loaded")

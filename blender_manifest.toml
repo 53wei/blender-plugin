@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "blender_scene_assistant"
-version = "0.6.3"
-name = "场景领航员"
-tagline = "点击助手，用中文安全地调整场景"
+version = "0.7.0"
+name = "3D 打印零件助手"
+tagline = "按毫米参数创建并验证可编辑零件"
 maintainer = "Blender Scene Assistant contributors"
 type = "add-on"
 blender_version_min = "4.5.0"

@@ -242,6 +242,8 @@ class BSA_PT_scene_assistant(bpy.types.Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "BSA"
+    bl_order = 1
+    bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context: object) -> None:
         draw_assistant(self, context)
