@@ -20,10 +20,11 @@ FDM 最小规则检查；P1 已在 Blender 4.5.12 中事务化创建装配预览
 不能直接执行 Python 或修改 Blender。完整边界见
 [3D 打印零件助手方案 V0.1](docs/3D_PRINT_PART_ASSISTANT_PLAN_V0.1.md)。
 
-矩形转接板 P0 参数核心现已完成：可以离线生成矩形板和多组圆孔规格，检查孔越界、重叠与圆角
-冲突，并在板外形改变时验证孔的世界位置保持不变。三类 AI 零件候选协议也已完成严格解析，
-但尚未接入 Blender 网格、正式界面或真实 AI 请求。准确范围和演示方法见
-[矩形转接板 P0 中文说明](docs/ADAPTER_PLATE_P0.md)。
+矩形转接板 P0 参数核心和 P1 Blender 真实网格现已完成：可以离线生成并验证参数，在
+Blender 4.5 中事务化创建单一封闭板件和真实贯穿孔，并在失败时回滚。三类 AI 零件候选协议
+也已完成严格解析，但尚未接入正式界面或真实 AI 请求。准确范围和演示方法见
+[矩形转接板 P0 中文说明](docs/ADAPTER_PLATE_P0.md)和
+[矩形转接板 P1 中文说明](docs/ADAPTER_PLATE_P1.md)。
 
 ## 安装后会看到什么
 
@@ -101,7 +102,8 @@ FDM 最小规则检查；P1 已在 Blender 4.5.12 中事务化创建装配预览
 - Key 不写入 `.blend`、命令行或日志；模型失败、取消和超时都不会修改场景。
 - 纯 Python 测试、Blender 4.5 后台集成测试、隔离安装测试和 20 次重复验证。
 - 实验轨可从严格毫米参数创建 12 部件电路板外壳装配预览；创建需要确认，尺寸不一致会完整回滚。
-- 可离线生成和修改矩形转接板参数规格；AI 候选仅能请求测量、提出该零件族设计或生成受限参数补丁。
+- 可离线生成和修改矩形转接板参数规格，并事务化创建带真实贯穿孔的单一 Blender 流形网格；
+  AI 候选仅能请求测量、提出该零件族设计或生成受限参数补丁。
 
 ## 当前不能做什么
 
@@ -111,8 +113,8 @@ FDM 最小规则检查；P1 已在 Blender 4.5.12 中事务化创建装配预览
 还没有参数面板、自然语言入口、布尔开孔、螺丝孔、流形检查或导出，不能作为“AI 已经会建模”
 的证据。
 
-仓库中的矩形转接板 P0 目前同样是纯 Python 参数能力：尚未创建真实 Blender 网格、贯穿孔、
-尺寸标注、导出或打印证据，也没有出现在用户界面中。
+仓库中的矩形转接板 P1 已能由开发测试入口创建真实 Blender 网格和贯穿孔，但仍没有正式参数
+界面、尺寸标注、导出、切片或打印证据，不能把它描述为用户已经能安装后直接完成设计。
 
 自然语言理解范围变大了，但执行能力仍受白名单限制。“做成高级感”之类要求如果无法映射到现有动作，会得到明确错误，而不是让模型自由控制 Blender。表面摆放仍只支持能用水平世界坐标边界框可靠表达的支撑面。
 
@@ -128,6 +130,7 @@ blender --command extension validate
 blender --command extension build --output-dir dist
 blender --background --factory-startup --python-exit-code 1 --python tests/integration/run_m1_suite.py
 blender --background --factory-startup --online-mode --python-exit-code 1 --python tests/integration/run_provider_ui_suite.py
+.\scripts\run_adapter_plate_mesh_tests.ps1 -Blender "D:\Blender Foundation\Blender\blender.exe" -Output "dist\adapter_plate_p1.blend"
 .\scripts\run_m2_blender_tests.ps1 -Blender "blender" -Repeat 20
 ```
 

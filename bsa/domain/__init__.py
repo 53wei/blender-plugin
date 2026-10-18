@@ -18,6 +18,12 @@ from .adapter_plate import (
     MountingPatternSpec,
     PatternHoleSpec,
 )
+from .adapter_plate_mesh import (
+    AdapterPlateCreationPlan,
+    AdapterPlateMeshSpec,
+    AdapterPlateMeshState,
+    MeasuredRoundHole,
+)
 from .enclosure import (
     BoardSpec,
     EnclosureDesign,
@@ -40,7 +46,10 @@ from .scene import BoundingBox, ObjectState, SceneSnapshot
 __all__ = [
     "ActionPlan",
     "AdapterPlateDesign",
+    "AdapterPlateCreationPlan",
     "AdapterPlateHole",
+    "AdapterPlateMeshSpec",
+    "AdapterPlateMeshState",
     "AdapterPlateResizePatch",
     "AdapterPlateRevision",
     "AdapterPlateSpec",
@@ -61,6 +70,7 @@ __all__ = [
     "MountingHoleSpec",
     "MoveAction",
     "MountingPatternSpec",
+    "MeasuredRoundHole",
     "ObjectState",
     "PlaceOnAction",
     "PatternHoleSpec",
