@@ -15,6 +15,11 @@ FDM 最小规则检查；P1 已在 Blender 4.5.12 中事务化创建装配预览
 可直接打印的最终网格，准确范围见 [P1 中文说明](docs/PARAMETRIC_ENCLOSURE_P1.md)和
 [P1 开发者测试报告](docs/PARAMETRIC_ENCLOSURE_P1_TEST_REPORT.md)。
 
+新的正式方向是“3D 打印零件助手”：既支持用户直接按尺寸创建，也支持 AI 根据用途引导测量、
+提出受支持的结构候选和生成参数修改。它将复用现有用户自带 API 设置；AI 只产生严格候选，
+不能直接执行 Python 或修改 Blender。完整边界见
+[3D 打印零件助手方案 V0.1](docs/3D_PRINT_PART_ASSISTANT_PLAN_V0.1.md)。
+
 ## 安装后会看到什么
 
 1. 3D 视图右下角出现“场景领航员”助手形象。它只是界面入口，不是场景物体，不会进入渲染或导出。
