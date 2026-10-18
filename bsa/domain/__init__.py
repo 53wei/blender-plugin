@@ -9,6 +9,15 @@ from .actions import (
     RelativePlaceAction,
     UnlockAction,
 )
+from .adapter_plate import (
+    AdapterPlateDesign,
+    AdapterPlateHole,
+    AdapterPlateResizePatch,
+    AdapterPlateRevision,
+    AdapterPlateSpec,
+    MountingPatternSpec,
+    PatternHoleSpec,
+)
 from .enclosure import (
     BoardSpec,
     EnclosureDesign,
@@ -30,6 +39,11 @@ from .scene import BoundingBox, ObjectState, SceneSnapshot
 
 __all__ = [
     "ActionPlan",
+    "AdapterPlateDesign",
+    "AdapterPlateHole",
+    "AdapterPlateResizePatch",
+    "AdapterPlateRevision",
+    "AdapterPlateSpec",
     "BoundingBox",
     "BoardSpec",
     "CheckResult",
@@ -46,8 +60,10 @@ __all__ = [
     "LockAction",
     "MountingHoleSpec",
     "MoveAction",
+    "MountingPatternSpec",
     "ObjectState",
     "PlaceOnAction",
+    "PatternHoleSpec",
     "PreserveTransformConstraint",
     "PortCutout",
     "RectangularPortSpec",
