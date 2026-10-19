@@ -21,7 +21,11 @@ from bsa.planner.openai_compatible import (  # noqa: E402
     ProviderErrorCode,
 )
 from bsa.planner.llm.openai_chat import OpenAICompatiblePlannerClient  # noqa: E402
-from bsa.planner.provider import PlannerRequest  # noqa: E402
+from bsa.planner.llm.print_intent_chat import (  # noqa: E402
+    OpenAICompatiblePrintIntentClient,
+)
+from bsa.planner.print_intent_provider import PrintIntentRequest  # noqa: E402
+from bsa.planner.provider import PlannerRequest, PlannerResponse  # noqa: E402
 
 
 def _write(payload: dict[str, Any]) -> None:
@@ -32,6 +36,23 @@ def _write(payload: dict[str, Any]) -> None:
     ).encode("utf-8")
     sys.stdout.buffer.write(encoded)
     sys.stdout.buffer.flush()
+
+
+def _response_payload(response: PlannerResponse) -> dict[str, Any]:
+    return {
+        "plan_payload": response.plan_payload,
+        "usage": {
+            "provider": response.usage.provider,
+            "model": response.usage.model,
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "estimated_cost": response.usage.estimated_cost,
+            "latency_ms": response.usage.latency_ms,
+        },
+        "request_id": response.request_id,
+        "request_count": response.request_count,
+        "repair_count": response.repair_count,
+    }
 
 
 def main() -> int:
@@ -71,20 +92,27 @@ def main() -> int:
                 action_schema=action_schema,
             )
             response = OpenAICompatiblePlannerClient().plan(config, api_key, planner_request)
-            result_payload = {
-                "plan_payload": response.plan_payload,
-                "usage": {
-                    "provider": response.usage.provider,
-                    "model": response.usage.model,
-                    "input_tokens": response.usage.input_tokens,
-                    "output_tokens": response.usage.output_tokens,
-                    "estimated_cost": response.usage.estimated_cost,
-                    "latency_ms": response.usage.latency_ms,
-                },
-                "request_id": response.request_id,
-                "request_count": response.request_count,
-                "repair_count": response.repair_count,
-            }
+            result_payload = _response_payload(response)
+        elif operation == "print_intent":
+            request_payload = payload.get("request")
+            if not isinstance(request_payload, dict):
+                raise ProviderError(ProviderErrorCode.INVALID_CONFIG, "零件需求请求结构无效")
+            requested = request_payload.get("requested_measurements", [])
+            if not isinstance(requested, list) or not all(
+                isinstance(item, dict) for item in requested
+            ):
+                raise ProviderError(ProviderErrorCode.INVALID_CONFIG, "测量问题结构无效")
+            print_request = PrintIntentRequest(
+                instruction=str(request_payload.get("instruction", "")),
+                requested_measurements=tuple(requested),
+                measurement_answers=str(request_payload.get("measurement_answers", "")),
+            )
+            response = OpenAICompatiblePrintIntentClient().plan(
+                config,
+                api_key,
+                print_request,
+            )
+            result_payload = _response_payload(response)
         else:
             raise ProviderError(ProviderErrorCode.INVALID_CONFIG, "未知 Provider 操作")
         _write({"ok": True, "result": result_payload, "error": {}})

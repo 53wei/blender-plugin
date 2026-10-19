@@ -305,6 +305,18 @@ def _invalidate_adapter_plate_review(settings: object, _context: object) -> None
     settings.result_summary = ""
     settings.result_detail = ""
     settings.last_plan_id = ""
+    settings.review_source = "manual"
+
+
+def _invalidate_print_intent(settings: object, _context: object) -> None:
+    """需求或回答变化后废弃尚未发送的 AI 请求。"""
+
+    settings.ai_pending_json = ""
+    settings.ai_data_preview = ""
+    settings.ai_message = ""
+    settings.stage = (
+        "AI_NEEDS_INPUT" if settings.ai_previous_candidate_json else "START"
+    )
 
 
 class BSAAdapterPlateSettings(bpy.types.PropertyGroup):
@@ -313,14 +325,59 @@ class BSAAdapterPlateSettings(bpy.types.PropertyGroup):
     stage: bpy.props.EnumProperty(
         name="创建阶段",
         items=(
+            ("START", "描述需求", "描述用途，或直接填写完整尺寸"),
+            ("AI_REVIEW", "确认发送", "检查本轮将发送给 AI 的最小数据"),
+            ("AI_WORKING", "AI 正在分析", "等待严格零件候选"),
+            ("AI_NEEDS_INPUT", "补充测量", "回答影响当前设计的关键问题"),
+            ("AI_ERROR", "AI 未完成", "AI 请求或候选需要处理"),
             ("INPUT", "填写参数", "填写板件和孔位参数"),
             ("REVIEW", "检查设计", "检查本地展开后的设计摘要"),
             ("WORKING", "正在创建", "正在通过事务执行层创建并验证"),
             ("SUCCESS", "创建完成", "网格已创建并通过回读验证"),
             ("ERROR", "需要修改", "参数或执行结果需要处理"),
         ),
-        default="INPUT",
+        default="START",
         options={"SKIP_SAVE"},
+    )
+    ai_instruction: bpy.props.StringProperty(
+        name="你想做什么",
+        description="描述零件用途、安装对象和已经知道的尺寸",
+        default="",
+        maxlen=1000,
+        update=_invalidate_print_intent,
+        options={"SKIP_SAVE"},
+    )
+    ai_answers: bpy.props.StringProperty(
+        name="补充尺寸",
+        description="回答上方测量问题；请注明毫米单位和对应对象",
+        default="",
+        maxlen=1000,
+        update=_invalidate_print_intent,
+        options={"SKIP_SAVE"},
+    )
+    show_ai_settings: bpy.props.BoolProperty(
+        name="AI 服务设置",
+        description="展开用户自带 API 的会话设置",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
+    ai_pending_json: bpy.props.StringProperty(
+        name="待发送零件需求", default="", options={"SKIP_SAVE"}
+    )
+    ai_data_preview: bpy.props.StringProperty(
+        name="发送内容预览", default="", options={"SKIP_SAVE"}
+    )
+    ai_previous_candidate_json: bpy.props.StringProperty(
+        name="上一轮零件候选", default="", options={"SKIP_SAVE"}
+    )
+    ai_questions_text: bpy.props.StringProperty(
+        name="需要补充的测量", default="", options={"SKIP_SAVE"}
+    )
+    ai_message: bpy.props.StringProperty(
+        name="AI 状态说明", default="", options={"SKIP_SAVE"}
+    )
+    review_source: bpy.props.StringProperty(
+        name="设计来源", default="manual", options={"SKIP_SAVE"}
     )
     show_hole_settings: bpy.props.BoolProperty(
         name="孔位参数（4 个贯穿孔）",

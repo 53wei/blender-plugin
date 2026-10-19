@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import bpy
+from urllib.parse import urlsplit
 
 from ..application.ui_presentation import (
     POPUP_WIDTH_PX,
@@ -96,18 +97,116 @@ def _draw_parameters(layout: object, settings: object, *, width: int) -> None:
         )
 
 
+def _draw_ai_settings(layout: object, settings: object, session: object, *, width: int) -> None:
+    layout.prop(
+        settings,
+        "show_ai_settings",
+        text="AI 服务设置",
+        emboss=False,
+        icon=(
+            "DISCLOSURE_TRI_DOWN"
+            if settings.show_ai_settings
+            else "DISCLOSURE_TRI_RIGHT"
+        ),
+    )
+    if not settings.show_ai_settings:
+        return
+    box = layout.box()
+    fields = box.column()
+    fields.use_property_split = True
+    fields.use_property_decorate = False
+    fields.prop(session, "api_base", text="服务地址")
+    fields.prop(session, "model", text="模型名称")
+    fields.prop(session, "api_key", text="临时密钥")
+    fields.prop(session, "output_format", text="输出格式")
+    fields.prop(session, "timeout_seconds", text="超时（秒）")
+    if session.connection_status == "TESTING":
+        box.operator("bsa.cancel_provider_connection", text="取消连接测试", icon="CANCEL")
+    else:
+        box.operator("bsa.test_provider_connection", text="测试连接", icon="URL")
+    _wrapped(box, session.connection_message, width=width)
+    _wrapped(box, "密钥只保留在本次 Blender 会话。", width=width)
+
+
 def draw_adapter_plate(owner: object, context: object) -> None:
     layout = owner.layout
     layout.use_property_decorate = False
     settings = context.scene.bsa_adapter_plate_settings
+    session = context.window_manager.bsa_provider_session
     width = _width(owner, context)
 
     heading = layout.row()
-    heading.label(text="矩形转接板 · 本地创建", icon="MESH_CUBE")
+    heading.label(text="3D 打印零件助手", icon="MESH_CUBE")
     layout.separator()
+
+    if settings.stage == "START":
+        layout.label(text="告诉我你想做什么", icon="OUTLINER_OB_LIGHT")
+        _wrapped(
+            layout,
+            "目前支持四孔矩形转接板。描述用途、安装对象和你已经知道的尺寸。",
+            width=width,
+        )
+        layout.prop(settings, "ai_instruction", text="需求")
+        _primary(layout, "bsa.prepare_print_intent", "整理需求", icon="PLAY")
+        layout.operator(
+            "bsa.manual_adapter_plate",
+            text="我已知道尺寸，直接填写",
+            icon="TOOL_SETTINGS",
+        )
+        layout.separator()
+        _draw_ai_settings(layout, settings, session, width=width)
+        return
+
+    if settings.stage == "AI_REVIEW":
+        layout.label(text="调用前确认", icon="LOCKED")
+        _wrapped(layout, settings.ai_data_preview, width=width)
+        layout.separator()
+        host = urlsplit(session.api_base).hostname or "未设置"
+        _wrapped(
+            layout,
+            f"发送至：{host} · 模型：{session.model or '未设置'}",
+            width=width,
+        )
+        _primary(layout, "bsa.start_print_intent", "同意并调用 AI", icon="URL")
+        layout.operator("bsa.back_print_start", text="返回修改", icon="BACK")
+        return
+
+    if settings.stage == "AI_WORKING":
+        layout.label(text="AI 正在整理需求", icon="TIME")
+        _wrapped(layout, settings.ai_message, width=width)
+        _wrapped(layout, "完成前不会创建或修改 Blender 物体。", width=width)
+        layout.operator("bsa.cancel_print_intent", text="取消分析", icon="CANCEL")
+        return
+
+    if settings.stage == "AI_NEEDS_INPUT":
+        layout.label(text="还需要这些测量", icon="QUESTION")
+        _wrapped(layout, settings.ai_message, width=width)
+        questions = layout.box()
+        _wrapped(questions, settings.ai_questions_text, width=width)
+        layout.prop(settings, "ai_answers", text="你的回答")
+        _primary(layout, "bsa.prepare_print_intent", "检查补充信息", icon="PLAY")
+        layout.operator(
+            "bsa.manual_adapter_plate",
+            text="改为直接填写全部尺寸",
+            icon="TOOL_SETTINGS",
+        )
+        return
+
+    if settings.stage == "AI_ERROR":
+        feedback = layout.column()
+        feedback.alert = True
+        feedback.label(text="AI 没有完成", icon="ERROR")
+        _wrapped(feedback, settings.ai_message, width=width)
+        layout.operator("bsa.back_print_start", text="返回修改", icon="BACK")
+        layout.separator()
+        _draw_ai_settings(layout, settings, session, width=width)
+        return
 
     if settings.stage == "REVIEW":
         layout.label(text="第 2 步 / 2 · 检查设计", icon="PREVIEW_RANGE")
+        if settings.review_source == "ai":
+            layout.label(text="设计来源：AI 候选 · 已通过本地检查", icon="INFO")
+            _wrapped(layout, settings.ai_message, width=width)
         _wrapped(layout, settings.review_summary, width=width)
         layout.separator()
         _wrapped(layout, settings.review_details, width=width)
@@ -166,6 +265,7 @@ def draw_adapter_plate(owner: object, context: object) -> None:
         icon="PREVIEW_RANGE",
     )
     _wrapped(layout, "仅在本机检查；此时不联网，也不修改场景。", width=width)
+    layout.operator("bsa.back_print_start", text="返回需求入口", icon="BACK")
 
 
 class BSA_PT_print_part_assistant(bpy.types.Panel):

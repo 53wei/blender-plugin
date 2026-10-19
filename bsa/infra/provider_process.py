@@ -16,6 +16,7 @@ from ..planner.openai_compatible import (
     ProviderError,
     ProviderErrorCode,
 )
+from ..planner.print_intent_provider import PrintIntentRequest
 from ..planner.provider import PlannerRequest
 
 
@@ -109,6 +110,37 @@ class ProviderWorkerTask:
                     "scene_context": dict(request.scene_context),
                     "action_schema": dict(request.action_schema),
                 },
+            },
+            deadline_seconds=checked.timeout_seconds * 2.0 + 3.0,
+            python_executable=python_executable,
+            worker_script=worker_script,
+            popen_factory=popen_factory,
+        )
+
+    @classmethod
+    def start_print_intent(
+        cls,
+        config: ProviderConnectionConfig,
+        api_key: str,
+        request: PrintIntentRequest,
+        *,
+        python_executable: Path | None = None,
+        worker_script: Path | None = None,
+        popen_factory: Callable[..., subprocess.Popen[bytes]] = subprocess.Popen,
+    ) -> ProviderWorkerTask:
+        """启动零件需求结构化候选任务；场景和密钥不进入命令行。"""
+
+        checked = config.validated_for_planning()
+        return cls._start_worker(
+            checked,
+            api_key,
+            {
+                "operation": "print_intent",
+                "api_base": checked.api_base,
+                "model": checked.model,
+                "timeout_seconds": checked.timeout_seconds,
+                "output_format": checked.output_format,
+                "request": request.to_dict(),
             },
             deadline_seconds=checked.timeout_seconds * 2.0 + 3.0,
             python_executable=python_executable,

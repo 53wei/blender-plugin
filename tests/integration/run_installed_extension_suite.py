@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import addon_utils
 import bpy
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +21,11 @@ def add_cube(name: str, location: tuple[float, float, float], scale: tuple[float
 
 
 def main() -> int:
+    addon_utils.enable(
+        "bl_ext.user_default.blender_scene_assistant",
+        default_set=False,
+        persistent=False,
+    )
     if not hasattr(bpy.types.Scene, "bsa_settings"):
         raise AssertionError("Installed extension is not enabled")
     if not hasattr(bpy.types.WindowManager, "bsa_provider_session"):

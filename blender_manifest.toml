@@ -1,16 +1,16 @@
 schema_version = "1.0.0"
 
 id = "blender_scene_assistant"
-version = "0.7.0"
+version = "0.8.0"
 name = "3D 打印零件助手"
-tagline = "按毫米参数创建并验证可编辑零件"
+tagline = "用 AI 整理需求并创建可验证零件"
 maintainer = "Blender Scene Assistant contributors"
 type = "add-on"
 blender_version_min = "4.5.0"
 license = ["SPDX:GPL-3.0-or-later"]
 
 [permissions]
-network = "经用户逐次确认后，将指令和最小物体摘要发送到用户自行配置的 AI 服务"
+network = "经用户逐次确认后，将零件需求或最小物体摘要发送到用户自行配置的 AI 服务"
 
 [build]
 paths_exclude_pattern = [

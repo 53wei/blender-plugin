@@ -12,6 +12,7 @@ from pathlib import Path
 
 from bsa.infra.provider_process import ProviderWorkerTask
 from bsa.planner.openai_compatible import ProviderConnectionConfig, ProviderErrorCode
+from bsa.planner.print_intent_provider import PrintIntentRequest
 from bsa.planner.provider import PlannerRequest
 
 
@@ -39,18 +40,38 @@ class _ModelHandler(BaseHTTPRequestHandler):
         type(self).authorization = self.headers.get("Authorization", "")
         length = int(self.headers.get("Content-Length", "0"))
         type(self).request_body = json.loads(self.rfile.read(length).decode("utf-8"))
-        candidate = {
-            "schema_version": "0.1",
-            "actions": [
-                {
-                    "action_id": "lock-1",
-                    "type": "lock",
-                    "object_id": "desk-id",
-                }
-            ],
-            "constraints": [],
-            "user_summary": "锁定 Desk",
-        }
+        system_text = type(self).request_body["messages"][0]["content"]
+        if "3D 打印零件需求规划器" in system_text:
+            candidate = {
+                "schema_version": "0.1",
+                "status": "needs_input",
+                "part_family": "adapter_plate",
+                "missing_measurements": [
+                    {
+                        "measurement_id": "plate_width",
+                        "measurement_type": "outer_width",
+                        "target_id": "adapter_plate",
+                        "label": "可用板宽",
+                        "reason": "确定板件外形",
+                        "unit": "mm",
+                    }
+                ],
+                "assumptions": [],
+                "user_summary": "需要补充板宽",
+            }
+        else:
+            candidate = {
+                "schema_version": "0.1",
+                "actions": [
+                    {
+                        "action_id": "lock-1",
+                        "type": "lock",
+                        "object_id": "desk-id",
+                    }
+                ],
+                "constraints": [],
+                "user_summary": "锁定 Desk",
+            }
         payload = json.dumps(
             {
                 "id": "worker-request",
@@ -186,6 +207,30 @@ class ProviderProcessTests(unittest.TestCase):
         self.assertNotIn(secret, json.dumps(outcome.to_dict()))
         self.assertEqual(_ModelHandler.authorization, f"Bearer {secret}")
         self.assertNotIn(secret, json.dumps(_ModelHandler.request_body))
+
+    def test_print_intent_worker_returns_strict_candidate(self) -> None:
+        secret = "sk-print-process-secret"
+        request = PrintIntentRequest(
+            instruction="做一个连接设备与支架的转接板",
+            requested_measurements=(),
+            measurement_answers="",
+        )
+        task = ProviderWorkerTask.start_print_intent(
+            self._config(),
+            secret,
+            request,
+            python_executable=Path(sys.executable),
+            worker_script=WORKER_SCRIPT,
+        )
+        self.assertNotIn(secret, " ".join(task.command))
+        outcome = _wait_for(task)
+        self.assertTrue(outcome.ok, outcome)
+        self.assertEqual(outcome.result["plan_payload"]["status"], "needs_input")
+        self.assertEqual(outcome.result["plan_payload"]["part_family"], "adapter_plate")
+        self.assertNotIn(secret, json.dumps(outcome.to_dict()))
+        request_body = _ModelHandler.request_body
+        self.assertNotIn("scene_context", json.dumps(request_body, ensure_ascii=False))
+        self.assertEqual(_ModelHandler.authorization, f"Bearer {secret}")
 
 
 if __name__ == "__main__":

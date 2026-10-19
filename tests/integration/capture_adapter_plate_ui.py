@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -13,9 +15,9 @@ OUTPUT = ROOT / ".impeccable" / "review"
 extension = None
 object_count = 0
 ARGS = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-CASE = ARGS[0] if ARGS else "input"
-if CASE not in {"input", "review"}:
-    raise RuntimeError("界面截图案例只支持 input 或 review")
+CASE = ARGS[0] if ARGS else "start"
+if CASE not in {"start", "input", "review", "questions"}:
+    raise RuntimeError("界面截图案例只支持 start、input、review 或 questions")
 
 
 def load_extension():
@@ -40,9 +42,56 @@ def prepare() -> None:
     extension = load_extension()
     extension.register()
     object_count = len(bpy.context.scene.objects)
+    if CASE in {"input", "review"}:
+        assert bpy.ops.bsa.manual_adapter_plate() == {"FINISHED"}
     if CASE == "review":
         assert bpy.ops.bsa.review_adapter_plate() == {"FINISHED"}
         assert len(bpy.context.scene.objects) == object_count
+    if CASE == "questions":
+        operators = importlib.import_module(
+            "blender_scene_assistant_adapter_plate_capture.bsa.ui.adapter_plate_operators"
+        )
+        WorkerOutcome = importlib.import_module(
+            "blender_scene_assistant_adapter_plate_capture.bsa.infra.provider_process"
+        ).WorkerOutcome
+        candidate = {
+            "schema_version": "0.1",
+            "status": "needs_input",
+            "part_family": "adapter_plate",
+            "missing_measurements": [
+                {
+                    "measurement_id": "plate_size",
+                    "measurement_type": "outer_width",
+                    "target_id": "adapter_plate",
+                    "label": "可用板宽与板深",
+                    "reason": "确认外形能放入安装位置，并保留孔到边缘距离",
+                    "unit": "mm",
+                },
+                {
+                    "measurement_id": "hole_patterns",
+                    "measurement_type": "hole_center_x",
+                    "target_id": "device_and_support",
+                    "label": "两侧孔中心、孔距和孔径",
+                    "reason": "让设备孔和支架孔真实对齐",
+                    "unit": "mm",
+                },
+            ],
+            "assumptions": [],
+            "user_summary": "先补充影响装配的关键尺寸",
+        }
+        operators._apply_print_ai_outcome(
+            bpy.context.scene.bsa_adapter_plate_settings,
+            bpy.context.window_manager.bsa_provider_session,
+            WorkerOutcome(
+                True,
+                result={
+                    "plan_payload": candidate,
+                    "usage": {},
+                    "request_count": 1,
+                    "repair_count": 0,
+                },
+            ),
+        )
     area = next(area for area in bpy.context.window.screen.areas if area.type == "VIEW_3D")
     region = next(region for region in area.regions if region.type == "WINDOW")
     with bpy.context.temp_override(
@@ -62,7 +111,8 @@ def capture() -> None:
         check_existing=False,
     )
     settings = bpy.context.scene.bsa_adapter_plate_settings
-    assert settings.stage == CASE.upper()
+    expected = "AI_NEEDS_INPUT" if CASE == "questions" else CASE.upper()
+    assert settings.stage == expected
     assert len(bpy.context.scene.objects) == object_count
     print(
         f"BSA_ADAPTER_PLATE_CAPTURE={CASE}; no network, no scene mutation",

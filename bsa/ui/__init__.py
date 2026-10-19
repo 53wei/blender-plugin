@@ -10,11 +10,17 @@ from .avatar import (
     unregister_assets,
 )
 from .adapter_plate_operators import (
+    BSA_OT_back_print_start,
+    BSA_OT_cancel_print_intent,
     BSA_OT_confirm_adapter_plate,
     BSA_OT_edit_adapter_plate,
+    BSA_OT_manual_adapter_plate,
     BSA_OT_new_adapter_plate,
     BSA_OT_open_print_part,
+    BSA_OT_prepare_print_intent,
     BSA_OT_review_adapter_plate,
+    BSA_OT_start_print_intent,
+    cancel_print_provider_task,
 )
 from .adapter_plate_panel import BSA_PT_print_part_assistant
 from .operators import (
@@ -41,6 +47,11 @@ _CLASSES = (
     BSAAdapterPlateSettings,
     BSA_OT_open_assistant,
     BSA_OT_open_print_part,
+    BSA_OT_prepare_print_intent,
+    BSA_OT_start_print_intent,
+    BSA_OT_cancel_print_intent,
+    BSA_OT_manual_adapter_plate,
+    BSA_OT_back_print_start,
     BSA_OT_launch_assistant,
     BSA_OT_toggle_settings,
     BSA_OT_preview_instruction,
@@ -78,6 +89,7 @@ def register() -> None:
 
 def unregister() -> None:
     """Remove property, operator, and panel classes."""
+    cancel_print_provider_task()
     cancel_provider_task()
     if hasattr(bpy.types.WindowManager, "bsa_provider_session"):
         del bpy.types.WindowManager.bsa_provider_session

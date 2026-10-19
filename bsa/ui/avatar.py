@@ -167,6 +167,11 @@ class BSA_GGT_assistant_launcher(bpy.types.GizmoGroup):
             self.launcher.color = presentation.color
             return
         self.launcher.color = {
+            "START": (0.15, 0.72, 0.86),
+            "AI_REVIEW": (0.20, 0.52, 0.95),
+            "AI_WORKING": (1.00, 0.55, 0.12),
+            "AI_NEEDS_INPUT": (0.95, 0.68, 0.18),
+            "AI_ERROR": (0.92, 0.22, 0.22),
             "INPUT": (0.15, 0.72, 0.86),
             "REVIEW": (0.20, 0.52, 0.95),
             "WORKING": (1.00, 0.55, 0.12),
