@@ -13,11 +13,15 @@ class PrintIntentRequest:
     instruction: str
     requested_measurements: tuple[Mapping[str, Any], ...]
     measurement_answers: str
+    current_design: Mapping[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "instruction": self.instruction,
             "requested_measurements": [dict(item) for item in self.requested_measurements],
             "measurement_answers": self.measurement_answers,
         }
+        if self.current_design is not None:
+            payload["current_design"] = dict(self.current_design)
+        return payload
 

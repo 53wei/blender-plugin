@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blender-scene-assistant"
-version = "0.8.0"
+version = "0.9.0"
 description = "面向 Blender 的可验证 3D 打印零件助手"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-or-later" }

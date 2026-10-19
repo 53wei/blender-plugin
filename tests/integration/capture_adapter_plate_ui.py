@@ -16,8 +16,10 @@ extension = None
 object_count = 0
 ARGS = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
 CASE = ARGS[0] if ARGS else "start"
-if CASE not in {"start", "input", "review", "questions"}:
-    raise RuntimeError("界面截图案例只支持 start、input、review 或 questions")
+if CASE not in {"start", "input", "review", "questions", "modify", "update_review"}:
+    raise RuntimeError(
+        "界面截图案例只支持 start、input、review、questions、modify 或 update_review"
+    )
 
 
 def load_extension():
@@ -47,6 +49,19 @@ def prepare() -> None:
     if CASE == "review":
         assert bpy.ops.bsa.review_adapter_plate() == {"FINISHED"}
         assert len(bpy.context.scene.objects) == object_count
+    if CASE in {"modify", "update_review"}:
+        assert bpy.ops.bsa.manual_adapter_plate() == {"FINISHED"}
+        assert bpy.ops.bsa.review_adapter_plate() == {"FINISHED"}
+        assert bpy.ops.bsa.confirm_adapter_plate() == {"FINISHED"}
+        assert bpy.ops.bsa.open_adapter_plate_update() == {"FINISHED"}
+        object_count = len(bpy.context.scene.objects)
+        if CASE == "update_review":
+            settings = bpy.context.scene.bsa_adapter_plate_settings
+            settings.show_exact_modify = True
+            settings.modify_width_mm = 90.0
+            settings.modify_fixed_x_edge = "right"
+            assert bpy.ops.bsa.review_exact_adapter_plate_update() == {"FINISHED"}
+            assert len(bpy.context.scene.objects) == object_count
     if CASE == "questions":
         operators = importlib.import_module(
             "blender_scene_assistant_adapter_plate_capture.bsa.ui.adapter_plate_operators"
@@ -111,7 +126,11 @@ def capture() -> None:
         check_existing=False,
     )
     settings = bpy.context.scene.bsa_adapter_plate_settings
-    expected = "AI_NEEDS_INPUT" if CASE == "questions" else CASE.upper()
+    expected = {
+        "questions": "AI_NEEDS_INPUT",
+        "modify": "MODIFY_START",
+        "update_review": "UPDATE_REVIEW",
+    }.get(CASE, CASE.upper())
     assert settings.stage == expected
     assert len(bpy.context.scene.objects) == object_count
     print(

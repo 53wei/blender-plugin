@@ -5,14 +5,27 @@ from __future__ import annotations
 import unittest
 
 from bsa.application.print_design_assistant import (
+    build_parameter_patch_revision,
     build_print_intent_request,
     describe_missing_measurements,
     print_request_preview,
     form_from_design_candidate,
 )
+from bsa.core.adapter_plate import design_adapter_plate
 from bsa.domain.errors import DomainError, ErrorCode
 from bsa.planner.print_intent_candidate import PrintIntentCandidate
 from tests.test_print_intent_candidate import design_payload
+from tests.test_adapter_plate import make_plate
+
+
+def world_holes(design):
+    return {
+        hole.hole_id: (
+            hole.center_mm[0] + design.origin_offset_mm[0],
+            hole.center_mm[1] + design.origin_offset_mm[1],
+        )
+        for hole in design.holes
+    }
 
 
 class PrintDesignAssistantTests(unittest.TestCase):
@@ -100,6 +113,43 @@ class PrintDesignAssistantTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             build_print_intent_request("做转接板", previous_candidate=needs)
+
+    def test_modification_request_includes_only_current_managed_design(self) -> None:
+        current = design_adapter_plate(make_plate())
+        request = build_print_intent_request(
+            "板加长 10 mm，所有孔的位置保持不变",
+            current_design=current,
+        )
+        self.assertEqual(request.current_design, current.to_dict())
+        preview = print_request_preview(request)
+        self.assertIn("当前零件：adapter-demo", preview)
+        self.assertIn("80 × 40 × 3 mm", preview)
+        self.assertIn("4 个贯穿孔", preview)
+        self.assertIn("不发送 Blender 场景", preview)
+
+    def test_parameter_patch_builds_cumulative_verified_revision(self) -> None:
+        current = design_adapter_plate(make_plate(), origin_offset_mm=(-5.0, 0.0, 0.0))
+        payload = {
+            "schema_version": "0.1",
+            "status": "parameter_patch",
+            "part_family": "adapter_plate",
+            "target_plate_id": "adapter-demo",
+            "patch": {
+                "new_width_mm": 90.0,
+                "fixed_x_edge": "right",
+                "fixed_y_edge": "front",
+                "preserve_pattern_ids": ["device", "support"],
+            },
+            "preserve_relations": ["hole_world_centers"],
+            "assumptions": [],
+            "user_summary": "板宽改为 90 mm，孔位保持不变",
+        }
+        revision = build_parameter_patch_revision(
+            PrintIntentCandidate.from_dict(payload),
+            current,
+        )
+        self.assertEqual(revision.design.origin_offset_mm, (-15.0, 0.0, 0.0))
+        self.assertEqual(world_holes(revision.design), world_holes(current))
 
 
 if __name__ == "__main__":

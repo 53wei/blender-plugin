@@ -138,6 +138,16 @@ def draw(panel, context):
     return recorder
 
 
+def world_holes(design):
+    return {
+        hole.hole_id: (
+            round(hole.center_mm[0] + design.origin_offset_mm[0], 6),
+            round(hole.center_mm[1] + design.origin_offset_mm[1], 6),
+        )
+        for hole in design.holes
+    }
+
+
 def main() -> None:
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
@@ -273,6 +283,69 @@ def main() -> None:
         if "实物打印" not in "".join(completed.labels):
             raise AssertionError("成功阶段缺少实物验证边界")
 
+        port = BlenderAdapterPlatePort(bpy.context.scene)
+        before_update = port.read_plate_design(settings.plate_id)
+        before_world_holes = world_holes(before_update)
+        bpy.ops.mesh.primitive_cube_add(location=(2.0, 3.0, 4.0))
+        reference = bpy.context.active_object
+        reference.name = "UpdateProtectedReference"
+        reference_matrix = reference.matrix_world.copy()
+        count_before_update = len(bpy.context.scene.objects)
+
+        if bpy.ops.bsa.open_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError("创建成功后无法进入继续修改")
+        if settings.stage != "MODIFY_START" or settings.request_mode != "update":
+            raise AssertionError("继续修改没有进入独立修改阶段")
+        modification = draw(BSA_PT_print_part_assistant, bpy.context)
+        if "modify_instruction" not in modification.properties:
+            raise AssertionError("修改阶段没有自然语言输入")
+        if not any(
+            name == "bsa.prepare_print_intent" for name, _ in modification.buttons
+        ):
+            raise AssertionError("修改阶段没有 AI 整理入口")
+
+        settings.show_exact_modify = True
+        settings.modify_width_mm = 90.0
+        settings.modify_fixed_x_edge = "right"
+        if bpy.ops.bsa.review_exact_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError(settings.error_message)
+        if settings.stage != "UPDATE_REVIEW":
+            raise AssertionError("精确修改没有进入只读差异确认")
+        if len(bpy.context.scene.objects) != count_before_update:
+            raise AssertionError("修改确认前改变了场景对象")
+        if bpy.ops.bsa.open_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError("返回修改时误用了当前选中的其他对象")
+        if settings.stage != "MODIFY_START":
+            raise AssertionError("差异确认页无法返回修改")
+        settings.modify_width_mm = 90.0
+        settings.modify_fixed_x_edge = "right"
+        if bpy.ops.bsa.review_exact_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError(settings.error_message)
+        if bpy.ops.bsa.confirm_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError(settings.error_message)
+        if settings.stage != "UPDATE_SUCCESS":
+            raise AssertionError("修改事务没有进入成功阶段")
+        after_update = port.read_plate_design(settings.plate_id)
+        if after_update.size_mm != (90.0, 40.0, 3.0):
+            raise AssertionError("修改后实际设计尺寸错误")
+        if after_update.origin_offset_mm != (-10.0, 0.0, 0.0):
+            raise AssertionError("固定右边时原点补偿错误")
+        if world_holes(after_update) != before_world_holes:
+            raise AssertionError("修改后孔的世界位置发生变化")
+        if reference.matrix_world != reference_matrix:
+            raise AssertionError("修改事务改变了非目标对象")
+        updated_states = port.read_plate(settings.plate_id)
+        if len(updated_states) != 1 or not updated_states[0].is_manifold:
+            raise AssertionError("修改后网格没有通过实际回读")
+
+        if bpy.ops.bsa.undo_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError(settings.error_message)
+        restored = port.read_plate_design(settings.plate_id)
+        if restored != before_update:
+            raise AssertionError("撤销没有恢复修改前设计")
+        if reference.matrix_world != reference_matrix:
+            raise AssertionError("撤销事务改变了非目标对象")
+
         report = {
             "blender_version": bpy.app.version_string,
             "installed_package": INSTALLED,
@@ -288,6 +361,10 @@ def main() -> None:
             "through_hole_count": state.through_hole_count,
             "is_manifold": state.is_manifold,
             "connected_components": state.connected_components,
+            "post_creation_update_passed": True,
+            "world_holes_preserved": True,
+            "single_step_undo_passed": True,
+            "update_preserved_other_objects": True,
         }
         print("BSA_ADAPTER_PLATE_UI_RESULT=" + json.dumps(report, ensure_ascii=True))
 

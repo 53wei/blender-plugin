@@ -8,20 +8,35 @@ from uuid import uuid4
 
 import bpy
 
-from ..application.adapter_plate_service import AdapterPlateCreationService
+from ..application.adapter_plate_service import (
+    AdapterPlateCreationService,
+    AdapterPlateUpdateService,
+)
 from ..application.adapter_plate_ui import (
     AdapterPlateForm,
     build_adapter_plate_creation_plan,
+    build_adapter_plate_update_plan,
     review_adapter_plate_form,
+    review_adapter_plate_update,
 )
 from ..application.print_design_assistant import (
+    build_parameter_patch_revision,
     build_print_intent_request,
     describe_missing_measurements,
     form_from_design_candidate,
     print_request_preview,
 )
 from ..application.ui_presentation import POPUP_WIDTH_PX, provider_error_message
-from ..blender_adapter.adapter_plate_port import BlenderAdapterPlatePort
+from ..blender_adapter.adapter_plate_port import (
+    PLATE_ID_PROPERTY,
+    BlenderAdapterPlatePort,
+)
+from ..core.adapter_plate import resize_adapter_plate
+from ..core.adapter_plate_mesh import (
+    adapter_plate_design_from_dict,
+    adapter_plate_spec_from_design,
+)
+from ..domain.adapter_plate import AdapterPlateDesign, AdapterPlateResizePatch
 from ..domain.errors import DomainError, ErrorCode
 from ..infra.credentials import CredentialSource, resolve_api_key
 from ..infra.provider_process import ProviderWorkerTask, WorkerOutcome
@@ -112,6 +127,68 @@ def _set_form(settings: object, form: AdapterPlateForm) -> None:
         setattr(settings, field, getattr(form, field))
 
 
+def _design_from_json(value: str) -> AdapterPlateDesign:
+    payload = json.loads(value)
+    if not isinstance(payload, dict):
+        raise ValueError("invalid adapter plate design")
+    return adapter_plate_design_from_dict(payload)
+
+
+def _store_update_review(
+    settings: object,
+    before: AdapterPlateDesign,
+    after: AdapterPlateDesign,
+    *,
+    user_summary: str,
+    source: str,
+) -> None:
+    review = review_adapter_plate_update(
+        before,
+        after,
+        user_summary=user_summary,
+    )
+    settings.modify_before_design_json = json.dumps(
+        before.to_dict(), ensure_ascii=False, separators=(",", ":")
+    )
+    settings.modify_after_design_json = json.dumps(
+        after.to_dict(), ensure_ascii=False, separators=(",", ":")
+    )
+    settings.modify_review_fingerprint = review.fingerprint
+    settings.review_summary = review.summary
+    settings.review_details = review.details
+    settings.review_notice = review.notice
+    settings.review_source = source
+    settings.ai_message = user_summary
+    settings.error_message = ""
+    settings.stage = "UPDATE_REVIEW"
+
+
+def _begin_plate_update(settings: object, design: AdapterPlateDesign) -> None:
+    settings.request_mode = "update"
+    settings.modify_target_plate_id = design.plate_id
+    settings.modify_before_design_json = json.dumps(
+        design.to_dict(), ensure_ascii=False, separators=(",", ":")
+    )
+    settings.modify_after_design_json = ""
+    settings.modify_review_fingerprint = ""
+    settings.modify_instruction = ""
+    settings.modify_width_mm = design.size_mm[0]
+    settings.modify_depth_mm = design.size_mm[1]
+    settings.ai_pending_json = ""
+    settings.ai_data_preview = ""
+    settings.ai_previous_candidate_json = ""
+    settings.ai_questions_text = ""
+    settings.ai_answers = ""
+    settings.ai_message = ""
+    settings.review_summary = ""
+    settings.review_details = ""
+    settings.review_notice = ""
+    settings.error_message = ""
+    settings.result_summary = ""
+    settings.result_detail = ""
+    settings.stage = "MODIFY_START"
+
+
 def _store_usage(session: object, outcome: WorkerOutcome) -> None:
     usage = outcome.result.get("usage", {})
     if not isinstance(usage, dict):
@@ -161,9 +238,28 @@ def _apply_print_ai_outcome(
             settings.stage = "AI_NEEDS_INPUT"
             return
         if candidate.status == "parameter_patch":
+            if settings.request_mode != "update":
+                raise DomainError(
+                    ErrorCode.PLAN_SCHEMA_INVALID,
+                    "创建新零件时不能接受修改补丁",
+                )
+            before = _design_from_json(settings.modify_before_design_json)
+            revision = build_parameter_patch_revision(candidate, before)
+            settings.ai_previous_candidate_json = ""
+            settings.ai_questions_text = ""
+            settings.ai_answers = ""
+            _store_update_review(
+                settings,
+                before,
+                revision.design,
+                user_summary=candidate.user_summary,
+                source="ai_update",
+            )
+            return
+        if settings.request_mode == "update":
             raise DomainError(
-                ErrorCode.SPATIAL_UNSUPPORTED_GEOMETRY,
-                "创建后自然语言修改尚未接入安全网格修改事务",
+                ErrorCode.PLAN_SCHEMA_INVALID,
+                "修改现有零件时 AI 必须返回受限参数补丁",
             )
         form = form_from_design_candidate(candidate)
         _set_form(settings, form)
@@ -269,10 +365,18 @@ class BSA_OT_prepare_print_intent(bpy.types.Operator):
                 if not isinstance(raw, dict):
                     raise ValueError("invalid previous candidate")
                 previous = PrintIntentCandidate.from_dict(raw)
+            current_design = None
+            instruction = settings.ai_instruction
+            if settings.request_mode == "update":
+                current_design = _design_from_json(
+                    settings.modify_before_design_json
+                )
+                instruction = settings.modify_instruction
             request = build_print_intent_request(
-                settings.ai_instruction,
+                instruction,
                 previous_candidate=previous,
                 measurement_answers=settings.ai_answers,
+                current_design=current_design,
             )
         except (DomainError, TypeError, ValueError, json.JSONDecodeError) as error:
             message = error.message if isinstance(error, DomainError) else str(error)
@@ -318,6 +422,11 @@ class BSA_OT_start_print_intent(bpy.types.Operator):
                 instruction=str(pending.get("instruction", "")),
                 requested_measurements=tuple(requested),
                 measurement_answers=str(pending.get("measurement_answers", "")),
+                current_design=(
+                    pending.get("current_design")
+                    if isinstance(pending.get("current_design"), dict)
+                    else None
+                ),
             )
             config = ProviderConnectionConfig(
                 api_base=session.api_base,
@@ -381,6 +490,7 @@ class BSA_OT_manual_adapter_plate(bpy.types.Operator):
 
     def execute(self, context: object) -> set[str]:
         settings = context.scene.bsa_adapter_plate_settings
+        settings.request_mode = "create"
         settings.ai_pending_json = ""
         settings.ai_data_preview = ""
         settings.stage = "INPUT"
@@ -398,8 +508,231 @@ class BSA_OT_back_print_start(bpy.types.Operator):
         settings.ai_pending_json = ""
         settings.ai_data_preview = ""
         settings.stage = (
-            "AI_NEEDS_INPUT" if settings.ai_previous_candidate_json else "START"
+            "AI_NEEDS_INPUT"
+            if settings.ai_previous_candidate_json
+            else (
+                "MODIFY_START"
+                if settings.request_mode == "update"
+                else "START"
+            )
         )
+        return {"FINISHED"}
+
+
+class BSA_OT_open_adapter_plate_update(bpy.types.Operator):
+    """读取当前成功零件或活动对象的可信设计，进入连续修改。"""
+
+    bl_idname = "bsa.open_adapter_plate_update"
+    bl_label = "继续修改这个零件"
+    bl_description = "读取插件保存的参数与实际网格，开始安全修改"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_adapter_plate_settings
+        active = context.view_layer.objects.active
+        plate_id = ""
+        if settings.request_mode == "update":
+            plate_id = settings.modify_target_plate_id
+        if settings.stage in {"SUCCESS", "UPDATE_SUCCESS"}:
+            plate_id = settings.plate_id or settings.modify_target_plate_id
+        if not plate_id and active is not None:
+            plate_id = str(active.get(PLATE_ID_PROPERTY, ""))
+        if not plate_id:
+            message = "请先选中由本插件创建的转接板"
+            _show_ai_error(settings, message)
+            self.report({"WARNING"}, message)
+            return {"CANCELLED"}
+        try:
+            design = BlenderAdapterPlatePort(context.scene).read_plate_design(
+                plate_id
+            )
+        except DomainError as error:
+            _show_ai_error(settings, error.message)
+            self.report({"WARNING"}, error.message)
+            return {"CANCELLED"}
+        _begin_plate_update(settings, design)
+        return {"FINISHED"}
+
+
+class BSA_OT_review_exact_adapter_plate_update(bpy.types.Operator):
+    """不用 AI，从明确宽深和固定边生成本地更新差异。"""
+
+    bl_idname = "bsa.review_exact_adapter_plate_update"
+    bl_label = "检查精确修改"
+    bl_description = "本地计算新外形和原点补偿；不会修改 Blender 场景"
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_adapter_plate_settings
+        try:
+            before = _design_from_json(settings.modify_before_design_json)
+            spec = adapter_plate_spec_from_design(before)
+            new_width = (
+                None
+                if abs(settings.modify_width_mm - spec.width_mm) <= 1e-6
+                else settings.modify_width_mm
+            )
+            new_depth = (
+                None
+                if abs(settings.modify_depth_mm - spec.depth_mm) <= 1e-6
+                else settings.modify_depth_mm
+            )
+            revision = resize_adapter_plate(
+                spec,
+                AdapterPlateResizePatch(
+                    new_width_mm=new_width,
+                    new_depth_mm=new_depth,
+                    fixed_x_edge=settings.modify_fixed_x_edge,
+                    fixed_y_edge=settings.modify_fixed_y_edge,
+                    preserve_pattern_ids=tuple(
+                        pattern.pattern_id for pattern in spec.mounting_patterns
+                    ),
+                ),
+                origin_offset_mm=before.origin_offset_mm,
+            )
+            summary = "精确修改板件外形；全部安装孔世界位置保持不变"
+            _store_update_review(
+                settings,
+                before,
+                revision.design,
+                user_summary=summary,
+                source="manual_update",
+            )
+        except (DomainError, TypeError, ValueError, json.JSONDecodeError) as error:
+            message = error.message if isinstance(error, DomainError) else str(error)
+            settings.stage = "MODIFY_START"
+            settings.error_message = message or "无法生成精确修改"
+            self.report({"WARNING"}, settings.error_message)
+            return {"CANCELLED"}
+        return {"FINISHED"}
+
+
+class BSA_OT_confirm_adapter_plate_update(bpy.types.Operator):
+    """确认修改差异并通过更新事务替换、回读和验证真实网格。"""
+
+    bl_idname = "bsa.confirm_adapter_plate_update"
+    bl_label = "确认并更新"
+    bl_description = "替换目标网格并验证；失败会恢复上一版"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_adapter_plate_settings
+        if settings.stage != "UPDATE_REVIEW" or not settings.modify_review_fingerprint:
+            settings.stage = "MODIFY_START"
+            settings.error_message = "修改预览已经失效，请重新检查"
+            return {"CANCELLED"}
+        try:
+            before = _design_from_json(settings.modify_before_design_json)
+            after = _design_from_json(settings.modify_after_design_json)
+            review = review_adapter_plate_update(
+                before,
+                after,
+                user_summary=settings.ai_message,
+            )
+            if review.fingerprint != settings.modify_review_fingerprint:
+                raise DomainError(
+                    ErrorCode.PLAN_SCHEMA_INVALID,
+                    "修改参数已经改变，请重新检查",
+                )
+            plan = build_adapter_plate_update_plan(
+                review,
+                plan_id=f"adapter-update-{uuid4().hex}",
+            )
+        except (DomainError, TypeError, ValueError, json.JSONDecodeError) as error:
+            message = error.message if isinstance(error, DomainError) else str(error)
+            settings.stage = "MODIFY_START"
+            settings.error_message = message or "无法确认修改"
+            self.report({"ERROR"}, settings.error_message)
+            return {"CANCELLED"}
+
+        settings.stage = "UPDATE_WORKING"
+        result = AdapterPlateUpdateService(
+            BlenderAdapterPlatePort(context.scene)
+        ).execute_plan(plan, confirmed=True)
+        if result.status != "COMMITTED":
+            error = (
+                result.errors[0]
+                if result.errors
+                else DomainError(ErrorCode.INTERNAL_ERROR, "转接板更新没有完成")
+            )
+            recovery = (
+                "自动恢复验证失败，请立即保存备份"
+                if result.status == "ROLLBACK_FAILED"
+                else (
+                    "已恢复更新前版本"
+                    if result.status == "ROLLED_BACK"
+                    else "场景没有修改"
+                )
+            )
+            settings.stage = "MODIFY_START"
+            settings.error_message = f"{error.message}。{recovery}"
+            self.report({"ERROR"}, error.message)
+            return {"CANCELLED"}
+
+        verification = result.verification
+        checks = verification.checks if verification else ()
+        passed = sum(check.passed for check in checks)
+        settings.plate_id = plan.plate_id
+        settings.modify_target_plate_id = plan.plate_id
+        settings.modify_before_design_json = json.dumps(
+            plan.design.to_dict(), ensure_ascii=False, separators=(",", ":")
+        )
+        settings.result_summary = "模型已更新，并通过实际网格验证"
+        settings.result_detail = (
+            f"{passed}/{len(checks)} 项检查通过；4 个孔的世界位置保持不变；"
+            "上一版可从此页撤销。"
+        )
+        settings.error_message = ""
+        settings.last_plan_id = plan.plan_id
+        settings.modify_review_fingerprint = ""
+        settings.stage = "UPDATE_SUCCESS"
+        self.report({"INFO"}, settings.result_summary)
+        return {"FINISHED"}
+
+
+class BSA_OT_undo_adapter_plate_update(bpy.types.Operator):
+    """把上一版设计作为反向更新计划执行。"""
+
+    bl_idname = "bsa.undo_adapter_plate_update"
+    bl_label = "撤销本次修改"
+    bl_description = "通过同一更新事务恢复上一版，并再次验证实际网格"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context: object) -> set[str]:
+        settings = context.scene.bsa_adapter_plate_settings
+        plate_id = settings.modify_target_plate_id or settings.plate_id
+        port = BlenderAdapterPlatePort(context.scene)
+        try:
+            current = port.read_plate_design(plate_id)
+            previous = port.read_previous_plate_design(plate_id)
+            review = review_adapter_plate_update(
+                current,
+                previous,
+                user_summary="恢复上一版转接板设计",
+            )
+            plan = build_adapter_plate_update_plan(
+                review,
+                plan_id=f"adapter-undo-{uuid4().hex}",
+            )
+        except DomainError as error:
+            settings.error_message = error.message
+            self.report({"WARNING"}, error.message)
+            return {"CANCELLED"}
+        result = AdapterPlateUpdateService(port).execute_plan(plan, confirmed=True)
+        if result.status != "COMMITTED":
+            error = result.errors[0] if result.errors else DomainError(
+                ErrorCode.INTERNAL_ERROR,
+                "上一版恢复没有完成",
+            )
+            settings.error_message = error.message
+            self.report({"ERROR"}, error.message)
+            return {"CANCELLED"}
+        settings.stage = "UPDATE_SUCCESS"
+        settings.result_summary = "已恢复上一版，并通过实际网格验证"
+        settings.result_detail = "恢复仍经过更新事务；非目标对象保持不变。"
+        settings.error_message = ""
+        settings.modify_before_design_json = json.dumps(
+            previous.to_dict(), ensure_ascii=False, separators=(",", ":")
+        )
+        self.report({"INFO"}, settings.result_summary)
         return {"FINISHED"}
 
 
@@ -543,6 +876,11 @@ class BSA_OT_new_adapter_plate(bpy.types.Operator):
             self.report({"ERROR"}, message)
             return {"CANCELLED"}
         _clear_transient(settings)
+        settings.request_mode = "create"
+        settings.modify_target_plate_id = ""
+        settings.modify_before_design_json = ""
+        settings.modify_after_design_json = ""
+        settings.modify_review_fingerprint = ""
         settings.ai_instruction = ""
         settings.ai_answers = ""
         settings.ai_previous_candidate_json = ""

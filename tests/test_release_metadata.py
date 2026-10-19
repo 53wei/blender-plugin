@@ -22,7 +22,7 @@ class ReleaseMetadataTests(unittest.TestCase):
         project = tomllib.loads(
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
-        self.assertEqual(manifest["version"], "0.8.0")
+        self.assertEqual(manifest["version"], "0.9.0")
         self.assertEqual(project["project"]["version"], manifest["version"])
         self.assertEqual(__version__, manifest["version"])
         self.assertEqual(manifest["name"], "3D 打印零件助手")

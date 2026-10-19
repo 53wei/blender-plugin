@@ -176,5 +176,9 @@ class BSA_GGT_assistant_launcher(bpy.types.GizmoGroup):
             "REVIEW": (0.20, 0.52, 0.95),
             "WORKING": (1.00, 0.55, 0.12),
             "SUCCESS": (0.20, 0.78, 0.42),
+            "MODIFY_START": (0.15, 0.72, 0.86),
+            "UPDATE_REVIEW": (0.20, 0.52, 0.95),
+            "UPDATE_WORKING": (1.00, 0.55, 0.12),
+            "UPDATE_SUCCESS": (0.20, 0.78, 0.42),
             "ERROR": (0.92, 0.22, 0.22),
         }.get(print_settings.stage, (0.15, 0.72, 0.86))

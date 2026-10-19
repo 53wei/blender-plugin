@@ -10,12 +10,15 @@ from ..domain.adapter_plate_mesh import (
     AdapterPlateMeshState,
     MeasuredRoundHole,
 )
+from ..domain.adapter_plate import AdapterPlateDesign
+from ..domain.errors import DomainError, ErrorCode
 
 
 @dataclass(frozen=True)
 class MemoryAdapterPlateCheckpoint:
     existing_objects: dict[str, Any]
     created: dict[str, tuple[AdapterPlateMeshState, ...]]
+    designs: dict[str, AdapterPlateDesign]
 
 
 class MemoryAdapterPlatePort:
@@ -28,9 +31,12 @@ class MemoryAdapterPlatePort:
     ) -> None:
         self._existing_objects = dict(existing_objects or {})
         self._created: dict[str, tuple[AdapterPlateMeshState, ...]] = {}
+        self._designs: dict[str, AdapterPlateDesign] = {}
         self._fail_on_create = fail_on_create
         self._tamper = tamper
+        self.update_tamper: str | None = None
         self.checkpoint_count = 0
+        self.update_checkpoint_count = 0
 
     @property
     def existing_objects(self) -> dict[str, Any]:
@@ -40,6 +46,7 @@ class MemoryAdapterPlatePort:
         return (
             tuple(sorted(self._existing_objects.items())),
             tuple(sorted(self._created.items())),
+            tuple(sorted(self._designs.items())),
         )
 
     def plate_exists(self, plate_id: str) -> bool:
@@ -60,15 +67,27 @@ class MemoryAdapterPlatePort:
         return MemoryAdapterPlateCheckpoint(
             existing_objects=dict(self._existing_objects),
             created=dict(self._created),
+            designs=dict(self._designs),
         )
 
-    def create_adapter_plate(
-        self,
+    @staticmethod
+    def _design(spec: AdapterPlateMeshSpec) -> AdapterPlateDesign:
+        return AdapterPlateDesign(
+            schema_version="0.1",
+            plate_id=spec.plate_id,
+            size_mm=spec.size_mm,
+            corner_radius_mm=spec.corner_radius_mm,
+            origin_offset_mm=spec.origin_offset_mm,
+            holes=spec.holes,
+        )
+
+    @staticmethod
+    def _state(
         plate_id: str,
         transaction_id: str,
         spec: AdapterPlateMeshSpec,
-    ) -> None:
-        state = AdapterPlateMeshState(
+    ) -> AdapterPlateMeshState:
+        return AdapterPlateMeshState(
             plate_id=plate_id,
             transaction_id=transaction_id,
             object_name=f"BSA_AdapterPlate_{plate_id}",
@@ -89,6 +108,14 @@ class MemoryAdapterPlatePort:
             ),
             face_count=1,
         )
+
+    def create_adapter_plate(
+        self,
+        plate_id: str,
+        transaction_id: str,
+        spec: AdapterPlateMeshSpec,
+    ) -> None:
+        state = self._state(plate_id, transaction_id, spec)
         if self._tamper == "hole_diameter":
             state = replace(
                 state,
@@ -103,6 +130,7 @@ class MemoryAdapterPlatePort:
         if self._tamper == "extra_object":
             states = (state, replace(state, object_name=f"{state.object_name}_extra"))
         self._created[transaction_id] = states
+        self._designs[plate_id] = self._design(spec)
         if self._tamper == "existing_scene" and self._existing_objects:
             key = sorted(self._existing_objects)[0]
             self._existing_objects[key] = (999.0, 999.0, 999.0)
@@ -113,6 +141,117 @@ class MemoryAdapterPlatePort:
         self, transaction_id: str
     ) -> tuple[AdapterPlateMeshState, ...]:
         return self._created.get(transaction_id, ())
+
+    def read_plate(self, plate_id: str) -> tuple[AdapterPlateMeshState, ...]:
+        return tuple(
+            state
+            for states in self._created.values()
+            for state in states
+            if state.plate_id == plate_id
+        )
+
+    def read_plate_design(self, plate_id: str) -> AdapterPlateDesign:
+        try:
+            return self._designs[plate_id]
+        except KeyError as error:
+            raise DomainError(
+                ErrorCode.OBJECT_NOT_FOUND,
+                "要读取的转接板不存在",
+                {"plate_id": plate_id},
+            ) from error
+
+    def capture_update_checkpoint(
+        self,
+        plate_id: str,
+        transaction_id: str,
+    ) -> MemoryAdapterPlateCheckpoint:
+        del plate_id, transaction_id
+        self.update_checkpoint_count += 1
+        return MemoryAdapterPlateCheckpoint(
+            existing_objects=dict(self._existing_objects),
+            created=dict(self._created),
+            designs=dict(self._designs),
+        )
+
+    def update_adapter_plate(
+        self,
+        plate_id: str,
+        transaction_id: str,
+        spec: AdapterPlateMeshSpec,
+    ) -> None:
+        for key, states in tuple(self._created.items()):
+            remaining = tuple(state for state in states if state.plate_id != plate_id)
+            if remaining:
+                self._created[key] = remaining
+            else:
+                self._created.pop(key)
+        state = self._state(plate_id, transaction_id, spec)
+        if self.update_tamper == "hole_diameter":
+            state = replace(
+                state,
+                measured_holes=(
+                    replace(state.measured_holes[0], diameter_mm=99.0),
+                    *state.measured_holes[1:],
+                ),
+            )
+        self._created[transaction_id] = (state,)
+        self._designs[plate_id] = self._design(spec)
+        if self.update_tamper == "existing_scene" and self._existing_objects:
+            key = sorted(self._existing_objects)[0]
+            self._existing_objects[key] = (999.0, 999.0, 999.0)
+
+    def existing_state_matches_update(
+        self,
+        checkpoint: MemoryAdapterPlateCheckpoint,
+        plate_id: str,
+        transaction_id: str,
+    ) -> bool:
+        del transaction_id
+
+        def unrelated(
+            created: dict[str, tuple[AdapterPlateMeshState, ...]],
+        ) -> tuple[AdapterPlateMeshState, ...]:
+            return tuple(
+                state
+                for states in created.values()
+                for state in states
+                if state.plate_id != plate_id
+            )
+
+        return (
+            self._existing_objects == checkpoint.existing_objects
+            and unrelated(self._created) == unrelated(checkpoint.created)
+            and {
+                key: value for key, value in self._designs.items() if key != plate_id
+            }
+            == {
+                key: value
+                for key, value in checkpoint.designs.items()
+                if key != plate_id
+            }
+        )
+
+    def commit_update_checkpoint(
+        self,
+        checkpoint: MemoryAdapterPlateCheckpoint,
+        transaction_id: str,
+    ) -> None:
+        del checkpoint, transaction_id
+
+    def restore_update_checkpoint(
+        self,
+        checkpoint: MemoryAdapterPlateCheckpoint,
+        transaction_id: str,
+    ) -> bool:
+        del transaction_id
+        self._existing_objects = dict(checkpoint.existing_objects)
+        self._created = dict(checkpoint.created)
+        self._designs = dict(checkpoint.designs)
+        return self.scene_state() == (
+            tuple(sorted(checkpoint.existing_objects.items())),
+            tuple(sorted(checkpoint.created.items())),
+            tuple(sorted(checkpoint.designs.items())),
+        )
 
     def existing_state_matches(
         self,
@@ -135,7 +274,9 @@ class MemoryAdapterPlatePort:
         del transaction_id
         self._existing_objects = dict(checkpoint.existing_objects)
         self._created = dict(checkpoint.created)
+        self._designs = dict(checkpoint.designs)
         return self.scene_state() == (
             tuple(sorted(checkpoint.existing_objects.items())),
             tuple(sorted(checkpoint.created.items())),
+            tuple(sorted(checkpoint.designs.items())),
         )

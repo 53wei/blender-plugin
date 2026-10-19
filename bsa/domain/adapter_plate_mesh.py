@@ -114,3 +114,36 @@ class AdapterPlateCreationPlan:
             },
             "user_summary": self.user_summary,
         }
+
+
+@dataclass(frozen=True)
+class AdapterPlateUpdatePlan:
+    """P4 唯一允许的转接板真实网格更新计划。"""
+
+    schema_version: str
+    plan_id: str
+    source: str
+    requires_confirmation: bool
+    plate_id: str
+    before_design: AdapterPlateDesign
+    design: AdapterPlateDesign
+    user_summary: str
+
+    @property
+    def action_type(self) -> str:
+        return "update_adapter_plate_mesh"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "plan_id": self.plan_id,
+            "source": self.source,
+            "requires_confirmation": self.requires_confirmation,
+            "action": {
+                "type": self.action_type,
+                "plate_id": self.plate_id,
+                "before_design": self.before_design.to_dict(),
+                "design": self.design.to_dict(),
+            },
+            "user_summary": self.user_summary,
+        }

@@ -20,6 +20,7 @@ from .adapter_plate import (
 )
 from .adapter_plate_mesh import (
     AdapterPlateCreationPlan,
+    AdapterPlateUpdatePlan,
     AdapterPlateMeshSpec,
     AdapterPlateMeshState,
     MeasuredRoundHole,
@@ -47,6 +48,7 @@ __all__ = [
     "ActionPlan",
     "AdapterPlateDesign",
     "AdapterPlateCreationPlan",
+    "AdapterPlateUpdatePlan",
     "AdapterPlateHole",
     "AdapterPlateMeshSpec",
     "AdapterPlateMeshState",

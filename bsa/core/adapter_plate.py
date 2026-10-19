@@ -215,9 +215,11 @@ def _axis_shift(delta: float, fixed_edge: str, axis: str) -> float:
 def resize_adapter_plate(
     spec: AdapterPlateSpec,
     patch: AdapterPlateResizePatch,
+    *,
+    origin_offset_mm: tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> AdapterPlateRevision:
     """改变板尺寸，同时以坐标补偿保持全部安装模式世界位置不变。"""
-    before = design_adapter_plate(spec)
+    before = design_adapter_plate(spec, origin_offset_mm=origin_offset_mm)
     if patch.new_width_mm is None and patch.new_depth_mm is None:
         _fail("修改必须提供新宽度或新深度")
 
@@ -266,7 +268,11 @@ def resize_adapter_plate(
         0.0 if y_shift == 0.0 else -y_shift,
         0.0,
     )
-    design = design_adapter_plate(updated_spec, origin_offset_mm=origin_shift)
+    updated_origin = tuple(
+        origin_offset_mm[index] + origin_shift[index]
+        for index in range(3)
+    )
+    design = design_adapter_plate(updated_spec, origin_offset_mm=updated_origin)
     return AdapterPlateRevision(
         schema_version="0.1",
         plate_id=spec.plate_id,

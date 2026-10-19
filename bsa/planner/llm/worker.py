@@ -106,6 +106,11 @@ def main() -> int:
                 instruction=str(request_payload.get("instruction", "")),
                 requested_measurements=tuple(requested),
                 measurement_answers=str(request_payload.get("measurement_answers", "")),
+                current_design=(
+                    request_payload.get("current_design")
+                    if isinstance(request_payload.get("current_design"), dict)
+                    else None
+                ),
             )
             response = OpenAICompatiblePrintIntentClient().plan(
                 config,

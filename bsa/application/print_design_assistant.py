@@ -6,9 +6,13 @@ import math
 
 from .adapter_plate_ui import AdapterPlateForm
 from ..core.adapter_plate import design_adapter_plate
-from ..domain.adapter_plate import AdapterPlateHole
+from ..core.adapter_plate_mesh import adapter_plate_spec_from_design
+from ..domain.adapter_plate import AdapterPlateDesign, AdapterPlateHole, AdapterPlateRevision
 from ..domain.errors import DomainError, ErrorCode
-from ..planner.print_intent_candidate import PrintIntentCandidate
+from ..planner.print_intent_candidate import (
+    PrintIntentCandidate,
+    build_adapter_plate_revision,
+)
 from ..planner.print_intent_provider import PrintIntentRequest
 
 
@@ -31,6 +35,7 @@ def build_print_intent_request(
     *,
     previous_candidate: PrintIntentCandidate | None = None,
     measurement_answers: str = "",
+    current_design: AdapterPlateDesign | None = None,
 ) -> PrintIntentRequest:
     """构造发送前可完整预览的最小请求；不包含界面默认尺寸。"""
 
@@ -52,6 +57,7 @@ def build_print_intent_request(
         instruction=intent,
         requested_measurements=requested,
         measurement_answers=answers,
+        current_design=(current_design.to_dict() if current_design is not None else None),
     )
 
 
@@ -66,6 +72,14 @@ def print_request_preview(request: PrintIntentRequest) -> str:
         )
         lines.append(f"上一轮待补充：{labels}")
         lines.append(f"本轮补充：{request.measurement_answers}")
+    if request.current_design is not None:
+        design = request.current_design
+        size = design.get("size_mm", ["?", "?", "?"])
+        holes = design.get("holes", [])
+        lines.append(f"当前零件：{design.get('plate_id', '未知')}")
+        if isinstance(size, list) and len(size) == 3:
+            lines.append(f"当前尺寸：{size[0]:g} × {size[1]:g} × {size[2]:g} mm")
+        lines.append(f"当前结构：{len(holes) if isinstance(holes, list) else 0} 个贯穿孔")
     lines.extend(
         (
             "候选零件族：四孔矩形转接板",
@@ -74,6 +88,20 @@ def print_request_preview(request: PrintIntentRequest) -> str:
         )
     )
     return "\n".join(lines)
+
+
+def build_parameter_patch_revision(
+    candidate: PrintIntentCandidate,
+    current_design: AdapterPlateDesign,
+) -> AdapterPlateRevision:
+    """把受限 AI 补丁应用到当前可信设计，并累计原点补偿。"""
+
+    current_spec = adapter_plate_spec_from_design(current_design)
+    return build_adapter_plate_revision(
+        candidate,
+        current_spec,
+        current_origin_offset_mm=current_design.origin_offset_mm,
+    )
 
 
 def describe_missing_measurements(candidate: PrintIntentCandidate) -> str:

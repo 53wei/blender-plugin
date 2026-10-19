@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import bpy
 from urllib.parse import urlsplit
+
+import bpy
 
 from ..application.ui_presentation import (
     POPUP_WIDTH_PX,
@@ -153,12 +154,20 @@ def draw_adapter_plate(owner: object, context: object) -> None:
             text="我已知道尺寸，直接填写",
             icon="TOOL_SETTINGS",
         )
+        active = context.view_layer.objects.active
+        if active is not None and active.get("bsa_adapter_plate_id"):
+            layout.operator(
+                "bsa.open_adapter_plate_update",
+                text="修改已选中的转接板",
+                icon="GREASEPENCIL",
+            )
         layout.separator()
         _draw_ai_settings(layout, settings, session, width=width)
         return
 
     if settings.stage == "AI_REVIEW":
-        layout.label(text="调用前确认", icon="LOCKED")
+        title = "修改请求 · 调用前确认" if settings.request_mode == "update" else "调用前确认"
+        layout.label(text=title, icon="LOCKED")
         _wrapped(layout, settings.ai_data_preview, width=width)
         layout.separator()
         host = urlsplit(session.api_base).hostname or "未设置"
@@ -172,7 +181,8 @@ def draw_adapter_plate(owner: object, context: object) -> None:
         return
 
     if settings.stage == "AI_WORKING":
-        layout.label(text="AI 正在整理需求", icon="TIME")
+        title = "AI 正在整理修改" if settings.request_mode == "update" else "AI 正在整理需求"
+        layout.label(text=title, icon="TIME")
         _wrapped(layout, settings.ai_message, width=width)
         _wrapped(layout, "完成前不会创建或修改 Blender 物体。", width=width)
         layout.operator("bsa.cancel_print_intent", text="取消分析", icon="CANCEL")
@@ -185,11 +195,65 @@ def draw_adapter_plate(owner: object, context: object) -> None:
         _wrapped(questions, settings.ai_questions_text, width=width)
         layout.prop(settings, "ai_answers", text="你的回答")
         _primary(layout, "bsa.prepare_print_intent", "检查补充信息", icon="PLAY")
-        layout.operator(
-            "bsa.manual_adapter_plate",
-            text="改为直接填写全部尺寸",
-            icon="TOOL_SETTINGS",
+        if settings.request_mode == "update":
+            layout.operator(
+                "bsa.open_adapter_plate_update",
+                text="改为精确填写新尺寸",
+                icon="TOOL_SETTINGS",
+            )
+        else:
+            layout.operator(
+                "bsa.manual_adapter_plate",
+                text="改为直接填写全部尺寸",
+                icon="TOOL_SETTINGS",
+            )
+        return
+
+    if settings.stage == "MODIFY_START":
+        layout.label(text=f"继续修改 · {settings.modify_target_plate_id}", icon="GREASEPENCIL")
+        _wrapped(
+            layout,
+            (
+                f"当前外形：{settings.modify_width_mm:g} × "
+                f"{settings.modify_depth_mm:g} mm。"
+                "本阶段只修改板宽或板深，并保持全部孔的世界位置。"
+            ),
+            width=width,
         )
+        if settings.error_message:
+            feedback = layout.column()
+            feedback.alert = True
+            _wrapped(feedback, settings.error_message, width=width)
+        layout.prop(settings, "modify_instruction", text="修改要求")
+        _primary(layout, "bsa.prepare_print_intent", "整理修改", icon="PLAY")
+        layout.prop(
+            settings,
+            "show_exact_modify",
+            text="不用 AI，精确填写新尺寸",
+            emboss=False,
+            icon=(
+                "DISCLOSURE_TRI_DOWN"
+                if settings.show_exact_modify
+                else "DISCLOSURE_TRI_RIGHT"
+            ),
+        )
+        if settings.show_exact_modify:
+            exact = layout.box()
+            fields = exact.column()
+            fields.use_property_split = True
+            fields.use_property_decorate = False
+            fields.prop(settings, "modify_width_mm")
+            fields.prop(settings, "modify_fixed_x_edge")
+            fields.prop(settings, "modify_depth_mm")
+            fields.prop(settings, "modify_fixed_y_edge")
+            exact.operator(
+                "bsa.review_exact_adapter_plate_update",
+                text="检查精确修改",
+                icon="PREVIEW_RANGE",
+            )
+        layout.separator()
+        _draw_ai_settings(layout, settings, session, width=width)
+        layout.operator("bsa.new_adapter_plate", text="返回并创建新零件", icon="BACK")
         return
 
     if settings.stage == "AI_ERROR":
@@ -225,6 +289,29 @@ def draw_adapter_plate(owner: object, context: object) -> None:
         )
         return
 
+    if settings.stage == "UPDATE_REVIEW":
+        layout.label(text="检查本次修改", icon="PREVIEW_RANGE")
+        if settings.review_source == "ai_update":
+            layout.label(text="修改来源：AI 参数补丁 · 已通过本地检查", icon="INFO")
+        _wrapped(layout, settings.review_summary, width=width)
+        layout.separator()
+        _wrapped(layout, settings.review_details, width=width)
+        layout.separator()
+        _wrapped(layout, settings.review_notice, width=width)
+        _primary(
+            layout,
+            "bsa.confirm_adapter_plate_update",
+            "确认并更新",
+            icon="CHECKMARK",
+        )
+        layout.operator("bsa.open_adapter_plate_update", text="返回修改", icon="BACK")
+        return
+
+    if settings.stage == "UPDATE_WORKING":
+        layout.label(text="正在更新并验证", icon="TIME")
+        _wrapped(layout, "失败时会自动恢复更新前的网格版本。", width=width)
+        return
+
     if settings.stage == "WORKING":
         layout.label(text="正在创建并验证", icon="TIME")
         _wrapped(layout, "请稍候。失败时会自动恢复创建前场景。", width=width)
@@ -242,10 +329,30 @@ def draw_adapter_plate(owner: object, context: object) -> None:
         )
         _primary(
             layout,
-            "bsa.new_adapter_plate",
-            "继续创建",
-            icon="FILE_REFRESH",
+            "bsa.open_adapter_plate_update",
+            "继续修改这个零件",
+            icon="GREASEPENCIL",
         )
+        layout.operator("bsa.new_adapter_plate", text="创建新零件", icon="FILE_REFRESH")
+        return
+
+    if settings.stage == "UPDATE_SUCCESS":
+        layout.label(text="修改完成", icon="CHECKMARK")
+        _wrapped(layout, settings.result_summary, width=width)
+        _wrapped(layout, settings.result_detail, width=width)
+        layout.separator()
+        _primary(
+            layout,
+            "bsa.open_adapter_plate_update",
+            "继续修改",
+            icon="GREASEPENCIL",
+        )
+        layout.operator(
+            "bsa.undo_adapter_plate_update",
+            text="撤销本次修改",
+            icon="LOOP_BACK",
+        )
+        layout.operator("bsa.new_adapter_plate", text="创建新零件", icon="FILE_REFRESH")
         return
 
     if settings.stage == "ERROR" and settings.error_message:

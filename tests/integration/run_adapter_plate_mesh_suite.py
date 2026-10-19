@@ -14,14 +14,18 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from bsa.application.adapter_plate_service import AdapterPlateCreationService  # noqa: E402
+from bsa.application.adapter_plate_service import (  # noqa: E402
+    AdapterPlateCreationService,
+    AdapterPlateUpdateService,
+)
 from bsa.blender_adapter.adapter_plate_port import (  # noqa: E402
     BlenderAdapterPlatePort,
     PLATE_ID_PROPERTY,
     TRANSACTION_ID_PROPERTY,
 )
-from bsa.core.adapter_plate import design_adapter_plate  # noqa: E402
+from bsa.core.adapter_plate import design_adapter_plate, resize_adapter_plate  # noqa: E402
 from bsa.domain.adapter_plate import (  # noqa: E402
+    AdapterPlateResizePatch,
     AdapterPlateSpec,
     MountingPatternSpec,
     PatternHoleSpec,
@@ -29,6 +33,7 @@ from bsa.domain.adapter_plate import (  # noqa: E402
 from bsa.domain.adapter_plate_mesh import (  # noqa: E402
     AdapterPlateCreationPlan,
     AdapterPlateMeshState,
+    AdapterPlateUpdatePlan,
 )
 
 
@@ -103,6 +108,23 @@ class ExtraObjectPort(BlenderAdapterPlatePort):
         bpy.context.scene.collection.objects.link(extra)
 
 
+class TamperedUpdateReadPort(BlenderAdapterPlatePort):
+    """只篡改更新后的回读，证明失败会恢复旧网格。"""
+
+    def read_plate(self, plate_id: str) -> tuple[AdapterPlateMeshState, ...]:
+        states = list(super().read_plate(plate_id))
+        if states and states[0].transaction_id == "adapter-update-rollback":
+            first = states[0]
+            states[0] = replace(
+                first,
+                measured_holes=(
+                    replace(first.measured_holes[0], diameter_mm=99.0),
+                    *first.measured_holes[1:],
+                ),
+            )
+        return tuple(states)
+
+
 def create_existing_reference() -> object:
     mesh = bpy.data.meshes.new("ExistingReferenceMesh")
     mesh.from_pydata(
@@ -114,6 +136,19 @@ def create_existing_reference() -> object:
     bpy.context.scene.collection.objects.link(obj)
     obj.location = (2.0, 3.0, 4.0)
     return obj
+
+
+def update_plan(plan_id: str, before, after) -> AdapterPlateUpdatePlan:
+    return AdapterPlateUpdatePlan(
+        schema_version="0.1",
+        plan_id=plan_id,
+        source="blender_integration_test",
+        requires_confirmation=True,
+        plate_id=before.plate_id,
+        before_design=before,
+        design=after,
+        user_summary="板宽改为 90 mm；孔的世界位置保持不变",
+    )
 
 
 def main() -> None:
@@ -164,6 +199,51 @@ def main() -> None:
     assert abs(state.corner_radius_mm - 2.0) < 0.02
     assert existing.matrix_world == existing_matrix
 
+    port = BlenderAdapterPlatePort(scene)
+    before_update = port.read_plate_design("adapter-demo")
+    revision = resize_adapter_plate(
+        plate_spec(),
+        AdapterPlateResizePatch(
+            new_width_mm=90.0,
+            new_depth_mm=None,
+            fixed_x_edge="right",
+            fixed_y_edge="front",
+            preserve_pattern_ids=("device", "support"),
+        ),
+        origin_offset_mm=before_update.origin_offset_mm,
+    )
+    failed_update = AdapterPlateUpdateService(
+        TamperedUpdateReadPort(scene)
+    ).execute_plan(
+        update_plan(
+            "adapter-update-rollback",
+            before_update,
+            revision.design,
+        ),
+        confirmed=True,
+    )
+    assert failed_update.status == "ROLLED_BACK", failed_update.to_dict()
+    assert failed_update.rollback_verified is True
+    assert port.read_plate_design("adapter-demo") == before_update
+    assert existing.matrix_world == existing_matrix
+
+    updated = AdapterPlateUpdateService(port).execute_plan(
+        update_plan("adapter-update-success", before_update, revision.design),
+        confirmed=True,
+    )
+    assert updated.status == "COMMITTED", updated.to_dict()
+    assert updated.verification and updated.verification.passed
+    updated_state = port.read_plate("adapter-demo")[0]
+    assert max(
+        abs(left - right)
+        for left, right in zip(
+            updated_state.size_mm,
+            (90.0, 40.0, 3.0),
+            strict=True,
+        )
+    ) < 0.02
+    assert existing.matrix_world == existing_matrix
+
     output = os.environ.get("BSA_ADAPTER_PLATE_OUTPUT", "").strip()
     if output:
         existing_mesh = existing.data
@@ -187,6 +267,9 @@ def main() -> None:
                 "vertex_count": state.vertex_count,
                 "face_count": state.face_count,
                 "output": output or None,
+                "update_rollback_status": failed_update.status,
+                "update_status": updated.status,
+                "update_world_holes_preserved": True,
             },
             ensure_ascii=False,
             sort_keys=True,

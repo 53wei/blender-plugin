@@ -110,6 +110,24 @@ def design_payload():
     }
 
 
+def parameter_patch_payload():
+    return {
+        "schema_version": "0.1",
+        "status": "parameter_patch",
+        "part_family": "adapter_plate",
+        "target_plate_id": "adapter-live-001",
+        "patch": {
+            "new_width_mm": 90.0,
+            "fixed_x_edge": "right",
+            "fixed_y_edge": "front",
+            "preserve_pattern_ids": ["device", "support"],
+        },
+        "preserve_relations": ["hole_world_centers"],
+        "assumptions": [],
+        "user_summary": "板宽改为 90 mm，全部孔位保持不变",
+    }
+
+
 class PrintIntentHandler(BaseHTTPRequestHandler):
     request_bodies: list[dict[str, object]] = []
     authorizations: list[str] = []
@@ -119,11 +137,13 @@ class PrintIntentHandler(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(length).decode("utf-8"))
         type(self).request_bodies.append(body)
         type(self).authorizations.append(self.headers.get("Authorization", ""))
-        candidate = (
-            needs_input_payload()
-            if len(type(self).request_bodies) == 1
-            else design_payload()
-        )
+        request_count = len(type(self).request_bodies)
+        if request_count == 1:
+            candidate = needs_input_payload()
+        elif request_count == 2:
+            candidate = design_payload()
+        else:
+            candidate = parameter_patch_payload()
         payload = json.dumps(
             {
                 "id": f"print-{len(type(self).request_bodies)}",
@@ -232,6 +252,52 @@ def main() -> None:
             raise AssertionError(settings.result_detail)
         if settings.stage != "SUCCESS":
             raise AssertionError("候选确认后没有完成事务创建")
+
+        port_module = importlib.import_module(package + ".blender_adapter.adapter_plate_port")
+        port = port_module.BlenderAdapterPlatePort(bpy.context.scene)
+        before_update = port.read_plate_design("adapter-live-001")
+        before_object_count = len(bpy.context.scene.objects)
+        if bpy.ops.bsa.open_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError("AI 创建后无法进入修改流程")
+        settings.modify_instruction = "板宽增加 10 mm，全部孔位保持不变"
+        if bpy.ops.bsa.prepare_print_intent() != {"FINISHED"}:
+            raise AssertionError("修改请求准备失败")
+        if len(PrintIntentHandler.request_bodies) != 2:
+            raise AssertionError("修改发送确认前发生了网络请求")
+        if bpy.ops.bsa.start_print_intent() != {"FINISHED"}:
+            raise AssertionError(settings.ai_message)
+        wait_for_stage(settings, operators, "UPDATE_REVIEW")
+        if len(PrintIntentHandler.request_bodies) != 3:
+            raise AssertionError("修改请求次数不正确")
+        if len(bpy.context.scene.objects) != before_object_count:
+            raise AssertionError("修改候选确认前改变了场景")
+        modification_body = PrintIntentHandler.request_bodies[-1]
+        user_payload = json.loads(modification_body["messages"][1]["content"])
+        if user_payload["current_design"]["plate_id"] != "adapter-live-001":
+            raise AssertionError("修改请求没有发送当前受管设计")
+        if "scene_context" in json.dumps(user_payload, ensure_ascii=False):
+            raise AssertionError("修改请求错误发送了场景上下文")
+        if bpy.ops.bsa.confirm_adapter_plate_update() != {"FINISHED"}:
+            raise AssertionError(settings.error_message)
+        after_update = port.read_plate_design("adapter-live-001")
+        if after_update.size_mm != (90.0, 40.0, 3.0):
+            raise AssertionError("AI 参数补丁没有更新真实网格")
+        before_holes = {
+            hole.hole_id: (
+                hole.center_mm[0] + before_update.origin_offset_mm[0],
+                hole.center_mm[1] + before_update.origin_offset_mm[1],
+            )
+            for hole in before_update.holes
+        }
+        after_holes = {
+            hole.hole_id: (
+                hole.center_mm[0] + after_update.origin_offset_mm[0],
+                hole.center_mm[1] + after_update.origin_offset_mm[1],
+            )
+            for hole in after_update.holes
+        }
+        if before_holes != after_holes:
+            raise AssertionError("AI 参数补丁改变了孔的世界位置")
         print(
             "BSA_PRINT_INTENT_PROVIDER_RESULT="
             + json.dumps(
@@ -243,6 +309,8 @@ def main() -> None:
                     "candidate_was_read_only": True,
                     "execution_status": "COMMITTED",
                     "output_format": "json_schema",
+                    "parameter_patch_updated_mesh": True,
+                    "update_world_holes_preserved": True,
                 },
                 ensure_ascii=True,
             )

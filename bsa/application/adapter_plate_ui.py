@@ -15,7 +15,10 @@ from ..domain.adapter_plate import (
     MountingPatternSpec,
     PatternHoleSpec,
 )
-from ..domain.adapter_plate_mesh import AdapterPlateCreationPlan
+from ..domain.adapter_plate_mesh import (
+    AdapterPlateCreationPlan,
+    AdapterPlateUpdatePlan,
+)
 from ..domain.errors import DomainError, ErrorCode
 
 _SAFE_PLATE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -50,6 +53,19 @@ class AdapterPlateReview:
     summary: str
     details: str
     notice: str
+
+
+@dataclass(frozen=True)
+class AdapterPlateUpdateReview:
+    """修改前只读差异；必须由本地验证后的前后设计生成。"""
+
+    before_design: AdapterPlateDesign
+    design: AdapterPlateDesign
+    fingerprint: str
+    summary: str
+    details: str
+    notice: str
+    user_summary: str
 
 
 def _number(value: float) -> str:
@@ -206,5 +222,115 @@ def build_adapter_plate_creation_plan(
         plate_id=canonical.design.plate_id,
         design=canonical.design,
         user_summary=canonical.summary,
+    )
+
+
+def _update_fingerprint(
+    before: AdapterPlateDesign,
+    after: AdapterPlateDesign,
+    user_summary: str,
+) -> str:
+    payload = json.dumps(
+        {
+            "before": before.to_dict(),
+            "after": after.to_dict(),
+            "user_summary": user_summary,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def review_adapter_plate_update(
+    before: AdapterPlateDesign,
+    after: AdapterPlateDesign,
+    *,
+    user_summary: str,
+) -> AdapterPlateUpdateReview:
+    """生成结构化更新差异，并复用服务层计划验证规则。"""
+
+    from .adapter_plate_service import validate_adapter_plate_update_plan
+
+    summary_text = user_summary.strip()
+    if not summary_text:
+        raise DomainError(ErrorCode.PLAN_SCHEMA_INVALID, "修改摘要不能为空")
+    probe = AdapterPlateUpdatePlan(
+        schema_version="0.1",
+        plan_id="update-review-probe",
+        source="adapter_plate_ui",
+        requires_confirmation=True,
+        plate_id=before.plate_id,
+        before_design=before,
+        design=after,
+        user_summary=summary_text,
+    )
+    validate_adapter_plate_update_plan(probe)
+    before_width, before_depth, _ = before.size_mm
+    after_width, after_depth, _ = after.size_mm
+    changed = []
+    unchanged = []
+    if before_width != after_width:
+        changed.append(f"板宽 {_number(before_width)} → {_number(after_width)} mm")
+    else:
+        unchanged.append(f"板宽保持 {_number(before_width)} mm")
+    if before_depth != after_depth:
+        changed.append(f"板深 {_number(before_depth)} → {_number(after_depth)} mm")
+    else:
+        unchanged.append(f"板深保持 {_number(before_depth)} mm")
+    origin = after.origin_offset_mm
+    details = "\n".join(
+        (
+            *unchanged,
+            f"{len(after.holes)} 个孔的世界位置和孔径保持不变",
+            (
+                "模型原点补偿："
+                f"({_number(origin[0])}, {_number(origin[1])}, "
+                f"{_number(origin[2])}) mm"
+            ),
+        )
+    )
+    summary = "；".join(changed)
+    return AdapterPlateUpdateReview(
+        before_design=before,
+        design=after,
+        fingerprint=_update_fingerprint(before, after, summary_text),
+        summary=summary,
+        details=details,
+        notice="修改已通过本地检查；确认前场景尚未修改。",
+        user_summary=summary_text,
+    )
+
+
+def build_adapter_plate_update_plan(
+    review: AdapterPlateUpdateReview,
+    *,
+    plan_id: str,
+) -> AdapterPlateUpdatePlan:
+    """重新构造差异并拒绝被界面或调用方篡改的更新摘要。"""
+
+    if not isinstance(review, AdapterPlateUpdateReview):
+        raise DomainError(ErrorCode.PLAN_SCHEMA_INVALID, "转接板修改内容必须是严格类型")
+    canonical = review_adapter_plate_update(
+        review.before_design,
+        review.design,
+        user_summary=review.user_summary,
+    )
+    if canonical != review:
+        raise DomainError(
+            ErrorCode.PLAN_SCHEMA_INVALID,
+            "转接板修改摘要已经失效，请重新检查",
+        )
+    return AdapterPlateUpdatePlan(
+        schema_version="0.1",
+        plan_id=plan_id,
+        source="adapter_plate_ui",
+        requires_confirmation=True,
+        plate_id=canonical.design.plate_id,
+        before_design=canonical.before_design,
+        design=canonical.design,
+        user_summary=canonical.user_summary,
     )
 

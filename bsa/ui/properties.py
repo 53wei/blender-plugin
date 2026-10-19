@@ -315,8 +315,22 @@ def _invalidate_print_intent(settings: object, _context: object) -> None:
     settings.ai_data_preview = ""
     settings.ai_message = ""
     settings.stage = (
-        "AI_NEEDS_INPUT" if settings.ai_previous_candidate_json else "START"
+        "AI_NEEDS_INPUT"
+        if settings.ai_previous_candidate_json
+        else ("MODIFY_START" if settings.request_mode == "update" else "START")
     )
+
+
+def _invalidate_exact_modify(settings: object, _context: object) -> None:
+    """精确修改输入变化后废弃旧差异，但保留当前目标。"""
+
+    settings.modify_after_design_json = ""
+    settings.modify_review_fingerprint = ""
+    settings.review_summary = ""
+    settings.review_details = ""
+    settings.review_notice = ""
+    settings.error_message = ""
+    settings.stage = "MODIFY_START"
 
 
 class BSAAdapterPlateSettings(bpy.types.PropertyGroup):
@@ -334,6 +348,10 @@ class BSAAdapterPlateSettings(bpy.types.PropertyGroup):
             ("REVIEW", "检查设计", "检查本地展开后的设计摘要"),
             ("WORKING", "正在创建", "正在通过事务执行层创建并验证"),
             ("SUCCESS", "创建完成", "网格已创建并通过回读验证"),
+            ("MODIFY_START", "继续修改", "描述当前板件需要怎样调整"),
+            ("UPDATE_REVIEW", "检查修改", "确认修改差异与保持项"),
+            ("UPDATE_WORKING", "正在更新", "正在通过更新事务替换并验证网格"),
+            ("UPDATE_SUCCESS", "修改完成", "新版本已提交并通过回读验证"),
             ("ERROR", "需要修改", "参数或执行结果需要处理"),
         ),
         default="START",
@@ -345,6 +363,72 @@ class BSAAdapterPlateSettings(bpy.types.PropertyGroup):
         default="",
         maxlen=1000,
         update=_invalidate_print_intent,
+        options={"SKIP_SAVE"},
+    )
+    request_mode: bpy.props.StringProperty(
+        name="需求模式", default="create", options={"SKIP_SAVE"}
+    )
+    modify_target_plate_id: bpy.props.StringProperty(
+        name="修改目标", default="", options={"SKIP_SAVE"}
+    )
+    modify_instruction: bpy.props.StringProperty(
+        name="怎么修改",
+        description="例如：板宽增加 10 mm，所有安装孔位置保持不变",
+        default="",
+        maxlen=1000,
+        update=_invalidate_print_intent,
+        options={"SKIP_SAVE"},
+    )
+    modify_before_design_json: bpy.props.StringProperty(
+        name="修改前设计", default="", options={"SKIP_SAVE"}
+    )
+    modify_after_design_json: bpy.props.StringProperty(
+        name="修改后设计", default="", options={"SKIP_SAVE"}
+    )
+    modify_review_fingerprint: bpy.props.StringProperty(
+        name="修改确认指纹", default="", options={"SKIP_SAVE"}
+    )
+    show_exact_modify: bpy.props.BoolProperty(
+        name="精确填写新尺寸",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
+    modify_width_mm: bpy.props.FloatProperty(
+        name="新板宽（mm）",
+        default=80.0,
+        min=0.01,
+        precision=2,
+        update=_invalidate_exact_modify,
+        options={"SKIP_SAVE"},
+    )
+    modify_depth_mm: bpy.props.FloatProperty(
+        name="新板深（mm）",
+        default=40.0,
+        min=0.01,
+        precision=2,
+        update=_invalidate_exact_modify,
+        options={"SKIP_SAVE"},
+    )
+    modify_fixed_x_edge: bpy.props.EnumProperty(
+        name="宽度固定边",
+        items=(
+            ("left", "固定左边", "向右侧改变宽度"),
+            ("center", "保持中心", "向左右平均改变宽度"),
+            ("right", "固定右边", "向左侧改变宽度"),
+        ),
+        default="left",
+        update=_invalidate_exact_modify,
+        options={"SKIP_SAVE"},
+    )
+    modify_fixed_y_edge: bpy.props.EnumProperty(
+        name="深度固定边",
+        items=(
+            ("front", "固定前边", "向后侧改变深度"),
+            ("center", "保持中心", "向前后平均改变深度"),
+            ("back", "固定后边", "向前侧改变深度"),
+        ),
+        default="front",
+        update=_invalidate_exact_modify,
         options={"SKIP_SAVE"},
     )
     ai_answers: bpy.props.StringProperty(

@@ -353,6 +353,8 @@ def build_adapter_plate_design(candidate: PrintIntentCandidate) -> AdapterPlateD
 def build_adapter_plate_revision(
     candidate: PrintIntentCandidate,
     current_spec: AdapterPlateSpec,
+    *,
+    current_origin_offset_mm: tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> AdapterPlateRevision:
     """把 AI 修改候选应用到本地可信的当前规格。"""
     if candidate.status != "parameter_patch" or candidate.resize_patch is None:
@@ -366,7 +368,11 @@ def build_adapter_plate_revision(
                 "current_plate_id": current_spec.plate_id,
             },
         )
-    return resize_adapter_plate(current_spec, candidate.resize_patch)
+    return resize_adapter_plate(
+        current_spec,
+        candidate.resize_patch,
+        origin_offset_mm=current_origin_offset_mm,
+    )
 
 
 def print_intent_json_schema() -> dict[str, Any]:

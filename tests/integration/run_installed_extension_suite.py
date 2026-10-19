@@ -46,7 +46,11 @@ def main() -> int:
         BSA_OT_test_provider_connection,
     )
     from bl_ext.user_default.blender_scene_assistant.bsa.ui.adapter_plate_operators import (
+        BSA_OT_confirm_adapter_plate_update,
         BSA_OT_open_print_part,
+        BSA_OT_open_adapter_plate_update,
+        BSA_OT_review_exact_adapter_plate_update,
+        BSA_OT_undo_adapter_plate_update,
     )
     from bl_ext.user_default.blender_scene_assistant.bsa.ui.avatar import (
         BSA_GGT_assistant_launcher,
@@ -64,6 +68,19 @@ def main() -> int:
         raise AssertionError("Installed assistant launcher is missing")
     if BSA_OT_open_print_part.bl_label != "打开 3D 打印零件":
         raise AssertionError("Installed print-part popup operator is missing")
+    update_labels = {
+        BSA_OT_open_adapter_plate_update.bl_label,
+        BSA_OT_review_exact_adapter_plate_update.bl_label,
+        BSA_OT_confirm_adapter_plate_update.bl_label,
+        BSA_OT_undo_adapter_plate_update.bl_label,
+    }
+    if update_labels != {
+        "继续修改这个零件",
+        "检查精确修改",
+        "确认并更新",
+        "撤销本次修改",
+    }:
+        raise AssertionError("Installed continuous-edit operators are incomplete")
     if BSA_OT_launch_assistant.bl_label != "启动 3D 打印零件助手":
         raise AssertionError("Installed assistant gizmo does not open product workflow")
     if BSA_OT_test_provider_connection.bl_label != "测试连接":
